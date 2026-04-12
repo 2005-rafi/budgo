@@ -1,0 +1,109 @@
+# ================================
+# FLUTTER / DART CORE
+# ================================
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+build/
+coverage/
+
+# Flutter plugin files
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Generated files
+GeneratedPluginRegistrant.*
+*.freezed.dart
+*.g.dart
+
+# ================================
+# LOGS & TEMP FILES
+# ================================
+*.log
+*.tmp
+*.swp
+*.pyc
+
+# ================================
+# ENV / SECRETS (CRITICAL)
+# ================================
+.env
+.env.*
+*.keystore
+*.jks
+key.properties
+
+# ================================
+# IDE / EDITOR
+# ================================
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code (optional – include if team shares configs)
+.vscode/
+
+# ================================
+# ANDROID
+# ================================
+android/.gradle/
+android/local.properties
+android/app/build/
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+# ================================
+# IOS
+# ================================
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/App.framework
+ios/ServiceDefinitions.json
+
+# Xcode workspace
+ios/Runner.xcworkspace/
+ios/Runner.xcodeproj/project.xcworkspace/
+
+# ================================
+# WEB
+# ================================
+web/.dart_tool/
+
+# ================================
+# WINDOWS / LINUX / MACOS
+# ================================
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/
+macos/Flutter/ephemeral/
+
+# ================================
+# SYMBOLS / OBFUSCATION
+# ================================
+app.*.symbols
+app.*.map.json
+
+# ================================
+# OS FILES
+# ================================
+.DS_Store
+Thumbs.db
+
+# ================================
+# DOCUMENTATION (OPTIONAL)
+# ================================
+**/doc/api/
+
+# ================================
+# VERSION CONTROL RULES
+# ================================
+
+# Ignore all lock files by default
+*.lock
+
+# BUT keep Flutter app dependency lock
+!pubspec.lock
