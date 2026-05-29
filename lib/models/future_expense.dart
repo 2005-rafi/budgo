@@ -2,6 +2,9 @@ import 'package:hive/hive.dart';
 
 part 'future_expense.g.dart';
 
+// SCHEMA VERSION: 2
+// Version 1: fields 0-7 (original)
+// Version 2: added fields 8-10 (linkedExpenseKey, purchasedAmount, purchasedAt) - backward compatible
 @HiveType(typeId: 2)
 class FutureExpense extends HiveObject {
   @HiveField(0)
@@ -11,7 +14,7 @@ class FutureExpense extends HiveObject {
   String title;
 
   @HiveField(2)
-  double? estimatedCost;
+  int? estimatedCost;
 
   @HiveField(3)
   int priority;
@@ -34,7 +37,7 @@ class FutureExpense extends HiveObject {
 
   // NEW: what user actually paid (can differ from estimate).
   @HiveField(9)
-  double? purchasedAmount;
+  int? purchasedAmount;
 
   // NEW: when it was purchased (defaults to now).
   @HiveField(10)

@@ -1,18 +1,34 @@
-import 'dart:math' as math;
-
-import 'package:expense/models/expense.dart';
-import 'package:expense/navigation/app_routes.dart';
-import 'package:expense/provider/expenses_provider.dart';
-import 'package:expense/services/report_export_service.dart';
-import 'package:expense/widgets/app_drawer.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:expense/models/reports_view_model.dart';
+import 'package:expense/models/filter_criteria.dart';
+
+import 'package:expense/provider/reports_provider.dart';
+import 'package:expense/provider/app_navigation_provider.dart';
+
+import 'package:expense/services/report_export_service.dart';
+
+import 'package:expense/core/money.dart';
+import 'package:expense/core/app_layout.dart';
+import 'package:expense/core/app_text_styles.dart';
+import 'package:expense/core/app_spacing.dart';
+
+import 'package:expense/widgets/charts/insight_line.dart';
+import 'package:expense/widgets/dashboard/calendar_heatmap.dart';
+import 'package:expense/widgets/empty_state_placeholder.dart';
+import 'package:expense/widgets/charts/line_chart_widget.dart';
+import 'package:expense/widgets/charts/bar_chart_widget.dart';
+import 'package:expense/widgets/charts/pie_chart_widget.dart';
+import 'package:expense/widgets/charts/chart_panel.dart';
+
 class ReportsScreen extends StatefulWidget {
+  static const String routeName = '/reports';
+
   const ReportsScreen({super.key});
 
   @override
@@ -20,156 +36,231 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
-  late DateTimeRange _range;
-  late _RangePreset _preset;
+  final ScrollController _scrollController = ScrollController();
+
+  DateTime _heatmapMonth = DateTime.now();
+  bool _isYearlyHeatmap = false;
+  bool _isExporting = false;
+  double? _exportProgress;
 
   @override
   void initState() {
     super.initState();
-    _preset = _RangePreset.thisMonth;
-    _range = _preset.toRange(DateTime.now());
+    _heatmapMonth = DateTime(_heatmapMonth.year, _heatmapMonth.month, 1);
   }
 
-  Future<void> _pickCustomRange() async {
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    // Use read to avoid rebuild during dispose
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<ReportsProvider>().clearRange();
+      }
+    });
+    super.dispose();
+  }
+
+  void _updateRangeAndCompute(
+    ReportsProvider provider,
+    DateTimeRange newRange,
+    ReportsRangePreset preset,
+  ) {
+    provider.setRange(newRange, preset);
+    // Task 4-C-4: Sync heatmap month with range
+    setState(() {
+      _heatmapMonth = DateTime(newRange.start.year, newRange.start.month, 1);
+    });
+  }
+
+  Future<void> _pickCustomRange(ReportsProvider provider) async {
     final picked = await showDateRangePicker(
       context: context,
-      initialDateRange: _range,
+      initialDateRange: provider.activeRange,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );
     if (picked != null) {
-      setState(() {
-        _preset = _RangePreset.custom;
-        _range = picked;
-      });
+      _updateRangeAndCompute(provider, picked, ReportsRangePreset.custom);
     }
   }
 
-  List<Expense> _expensesInRange(List<Expense> all) {
-    final start = DateTime(
-      _range.start.year,
-      _range.start.month,
-      _range.start.day,
-    );
-    final end = DateTime(
-      _range.end.year,
-      _range.end.month,
-      _range.end.day,
-      23,
-      59,
-      59,
-    );
-
-    final filtered = all
-        .where((e) => !e.date.isBefore(start) && !e.date.isAfter(end))
-        .toList();
-    filtered.sort((a, b) => b.date.compareTo(a.date));
-    return filtered;
-  }
-
-  Map<String, double> _categoryTotals(List<Expense> expenses) {
-    final map = <String, double>{};
-    for (final e in expenses) {
-      map[e.category] = (map[e.category] ?? 0) + e.amount;
-    }
-    return map;
-  }
-
-  List<_TimePoint> _timeSeries(List<Expense> expenses) {
-    final days = _range.duration.inDays + 1;
-    final weekly = days > 35;
-
-    final buckets = <DateTime, double>{};
-
-    DateTime normalizeDay(DateTime d) => DateTime(d.year, d.month, d.day);
-    DateTime startOfWeekMonday(DateTime d) {
-      final x = normalizeDay(d);
-      return x.subtract(Duration(days: x.weekday - 1));
+  void _confirmExport(BuildContext context, ReportsProvider provider) {
+    final expenses = provider.rangeExpenses;
+    if (expenses.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No expenses to export.')));
+      return;
     }
 
-    for (final e in expenses) {
-      final key = weekly ? startOfWeekMonday(e.date) : normalizeDay(e.date);
-      buckets[key] = (buckets[key] ?? 0) + e.amount;
-    }
-
-    final keys = buckets.keys.toList()..sort();
-    final labelFmt = weekly ? DateFormat('MMM d') : DateFormat('d MMM');
-    final maxBars = weekly ? 12 : 14;
-    final trimmed = keys.length > maxBars
-        ? keys.sublist(keys.length - maxBars)
-        : keys;
-
-    return trimmed
-        .map(
-          (k) => _TimePoint(label: labelFmt.format(k), value: buckets[k] ?? 0),
-        )
-        .toList();
-  }
-
-  Future<void> _showExportSheet(List<Expense> filtered) async {
-    final dateFmt = DateFormat('yyyy-MM-dd');
-    final title = 'Expenses report';
-    final fileBase =
-        'expenses_${dateFmt.format(_range.start)}_${dateFmt.format(_range.end)}';
-
-    await showModalBottomSheet(
+    showModalBottomSheet(
       context: context,
       showDragHandle: true,
       builder: (ctx) {
         final color = Theme.of(ctx).colorScheme;
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.md),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Text(
+                  'Export Data',
+                  style: Theme.of(
+                    ctx,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Exporting ${expenses.length} transaction(s) for the selected period.',
+                  style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                    color: color.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
                 ListTile(
                   leading: const Icon(Icons.table_view_outlined),
                   title: const Text('Export CSV'),
-                  subtitle: const Text(
-                    'Share a CSV file (best for full data).',
-                  ),
-                  onTap: () async {
+                  subtitle: const Text('Generates a full spreadsheet file.'),
+                  onTap: () {
                     Navigator.pop(ctx);
-                    final file = await ReportExportService.exportExpensesCsv(
-                      expenses: filtered,
-                      range: _range,
-                    );
-                    await Share.shareXFiles([XFile(file.path)], text: title);
+                    _runCsvExport(provider);
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.picture_as_pdf_outlined),
                   title: const Text('Export PDF'),
-                  subtitle: const Text('Share a printable PDF summary.'),
-                  onTap: () async {
+                  subtitle: Text(
+                    'Generates a formatted multi-page document (~${(expenses.length / 40).ceil()} pages).',
+                  ),
+                  onTap: () {
                     Navigator.pop(ctx);
-                    final bytes = await ReportExportService.buildExpensesPdfBytes(
-                      expenses: filtered,
-                      range: _range,
-                      title:
-                          '$title (${dateFmt.format(_range.start)} → ${dateFmt.format(_range.end)})',
-                    );
-                    await Printing.sharePdf(
-                      bytes: bytes,
-                      filename: '$fileBase.pdf',
-                    );
+                    _runPdfExport(provider);
                   },
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Tip: PDF shows up to 200 rows for readability; CSV exports everything.',
-                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                    color: color.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.md),
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  void _runCsvExport(ReportsProvider provider) async {
+    setState(() {
+      _isExporting = true;
+      _exportProgress = null;
+    });
+
+    final result = await ReportExportService.exportExpensesCsv(
+      expenses: provider.rangeExpenses,
+      range: provider.activeRange,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _isExporting = false;
+    });
+
+    if (result.isSuccess) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('CSV Export ready')));
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(result.value!.path)],
+          subject: 'Expenses CSV Export',
+        ),
+      );
+    } else {
+      _showExportError(result.error);
+    }
+  }
+
+  void _runPdfExport(ReportsProvider provider) async {
+    setState(() {
+      _isExporting = true;
+      _exportProgress = 0.0;
+    });
+
+    final title = 'Budgo Expenses Report';
+    final result = await ReportExportService.buildExpensesPdfBytes(
+      expenses: provider.rangeExpenses,
+      range: provider.activeRange,
+      title: title,
+      onProgress: (progress) {
+        if (mounted) {
+          setState(() {
+            _exportProgress = progress;
+          });
+        }
+      },
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _isExporting = false;
+      _exportProgress = null;
+    });
+
+    if (result.isSuccess) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('PDF Export ready')));
+
+      final dateFmt = DateFormat('yyyyMMdd');
+      final fileBase =
+          'budgo_expenses_${dateFmt.format(provider.activeRange.start)}_${dateFmt.format(provider.activeRange.end)}_${DateTime.now().millisecondsSinceEpoch}';
+
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/$fileBase.pdf');
+      await tempFile.writeAsBytes(result.value!);
+
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(tempFile.path)],
+          subject: 'Expenses PDF Export',
+        ),
+      );
+    } else {
+      _showExportError(result.error);
+    }
+  }
+
+  void _showExportError(ExportError? error) {
+    if (error == null) return;
+    final message = error.message;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
+  }
+
+  void _navigateMonth(
+    int monthsOffset,
+    DateTime? firstDate,
+    DateTime? lastDate,
+  ) {
+    setState(() {
+      final newMonth = DateTime(
+        _heatmapMonth.year,
+        _heatmapMonth.month + monthsOffset,
+        1,
+      );
+      if (firstDate != null &&
+          newMonth.isBefore(DateTime(firstDate.year, firstDate.month, 1))) {
+        return;
+      }
+      if (lastDate != null &&
+          newMonth.isAfter(DateTime(lastDate.year, lastDate.month, 1))) {
+        return;
+      }
+      _heatmapMonth = newMonth;
+    });
   }
 
   @override
@@ -177,556 +268,506 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final theme = Theme.of(context);
     final color = theme.colorScheme;
 
-    final expensesProvider = context.watch<ExpensesProvider>();
-    final all = expensesProvider.items;
-    final filtered = _expensesInRange(all);
-
-    final currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final total = filtered.fold<double>(0, (s, e) => s + e.amount);
-    final count = filtered.length;
-    final avg = count == 0 ? 0 : total / count;
-
-    final categoryTotals = _categoryTotals(filtered);
-    final topCategory = categoryTotals.entries.isEmpty
-        ? null
-        : (categoryTotals.entries.toList()
-                ..sort((a, b) => b.value.compareTo(a.value)))
-              .first;
-
-    final timeSeries = _timeSeries(filtered);
-    void _goHome(BuildContext context) {
-      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
-    }
-
-    return PopScope<Object?>(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) _goHome(context);
-      },
-      child: Scaffold(
-        drawer: const AppDrawer(currentRoute: AppRoutes.reports),
-        appBar: AppBar(
-          title: const Text('Reports'),
-          backgroundColor: color.primary,
-          foregroundColor: color.onPrimary,
-          actions: [
-            IconButton(
-              tooltip: 'Pick date range',
-              icon: const Icon(Icons.date_range_outlined),
-              onPressed: _pickCustomRange,
-            ),
-            IconButton(
-              tooltip: 'Export',
-              icon: const Icon(Icons.download_outlined),
-              onPressed: () => _showExportSheet(filtered),
-            ),
-          ],
-        ),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _RangeSelector(
-              preset: _preset,
-              range: _range,
-              onPreset: (p) => setState(() {
-                _preset = p;
-                _range = p.toRange(DateTime.now());
-              }),
-              onCustom: _pickCustomRange,
-            ),
-            const SizedBox(height: 12),
-
-            _KpiRow(
-              kpis: [
-                _Kpi(
-                  title: 'Total spent',
-                  value: currency.format(total),
-                  kind: _KpiKind.primary,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Reports'),
+        backgroundColor: color.surface,
+        foregroundColor: color.onSurface,
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        actions: _isExporting
+            ? []
+            : [
+                IconButton(
+                  tooltip: 'Pick date range',
+                  icon: const Icon(Icons.date_range_outlined),
+                  onPressed: () =>
+                      _pickCustomRange(context.read<ReportsProvider>()),
                 ),
-                _Kpi(
-                  title: 'Transactions',
-                  value: '$count',
-                  kind: _KpiKind.secondary,
-                ),
-                _Kpi(
-                  title: 'Avg/expense',
-                  value: currency.format(avg),
-                  kind: _KpiKind.tertiary,
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (val) {
+                    if (val == 'export') {
+                      _confirmExport(context, context.read<ReportsProvider>());
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'export',
+                      child: Row(
+                        children: [
+                          Icon(Icons.download_outlined, size: 20),
+                          SizedBox(width: 8),
+                          Text('Export Data'),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-            const SizedBox(height: 10),
-
-            _InsightCard(
-              title: 'Top category',
-              icon: Icons.local_offer_outlined,
-              child: Text(
-                topCategory == null
-                    ? 'No data in this range.'
-                    : '${topCategory.key} • ${currency.format(topCategory.value)}',
-                style: theme.textTheme.titleMedium,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            _InsightCard(
-              title: 'Spending trend',
-              icon: Icons.bar_chart_outlined,
-              child: timeSeries.isEmpty
-                  ? const _EmptyChartHint()
-                  : _BarChartCard(points: timeSeries),
-            ),
-            const SizedBox(height: 12),
-
-            _InsightCard(
-              title: 'Category split',
-              icon: Icons.pie_chart_outline,
-              child: categoryTotals.isEmpty
-                  ? const _EmptyChartHint()
-                  : _CategoryPieCard(categoryTotals: categoryTotals),
-            ),
-            const SizedBox(height: 12),
-
-            _InsightCard(
-              title: 'Top expenses',
-              icon: Icons.receipt_long_outlined,
-              child: filtered.isEmpty
-                  ? const _EmptyChartHint(
-                      message: 'No expenses in selected range.',
-                    )
-                  : _TopExpensesList(expenses: filtered.take(8).toList()),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
       ),
-    );
-  }
-}
+      body: Stack(
+        children: [
+          Selector<ReportsProvider, (bool, String?, int?)>(
+            selector: (_, p) =>
+                (p.isLoading, p.errorMessage, p.viewModel?.transactionCount),
+            builder: (context, data, _) {
+              final (isLoading, errorMessage, transactionCount) = data;
 
-enum _RangePreset { thisWeek, thisMonth, last30Days, custom }
-
-extension on _RangePreset {
-  String get label => switch (this) {
-    _RangePreset.thisWeek => 'This week',
-    _RangePreset.thisMonth => 'This month',
-    _RangePreset.last30Days => 'Last 30 days',
-    _RangePreset.custom => 'Custom',
-  };
-
-  DateTimeRange toRange(DateTime now) {
-    DateTime startOfWeekMonday(DateTime d) {
-      final x = DateTime(d.year, d.month, d.day);
-      return x.subtract(Duration(days: x.weekday - 1));
-    }
-
-    switch (this) {
-      case _RangePreset.thisWeek:
-        final start = startOfWeekMonday(now);
-        final end = start.add(const Duration(days: 6));
-        return DateTimeRange(start: start, end: end);
-      case _RangePreset.thisMonth:
-        final start = DateTime(now.year, now.month, 1);
-        final nextMonth = (now.month == 12)
-            ? DateTime(now.year + 1, 1, 1)
-            : DateTime(now.year, now.month + 1, 1);
-        final end = nextMonth.subtract(const Duration(days: 1));
-        return DateTimeRange(start: start, end: end);
-      case _RangePreset.last30Days:
-        final end = DateTime(now.year, now.month, now.day);
-        final start = end.subtract(const Duration(days: 29));
-        return DateTimeRange(start: start, end: end);
-      case _RangePreset.custom:
-        // Caller will set it.
-        return DateTimeRange(
-          start: DateTime(now.year, now.month, 1),
-          end: DateTime(now.year, now.month, now.day),
-        );
-    }
-  }
-}
-
-class _RangeSelector extends StatelessWidget {
-  final _RangePreset preset;
-  final DateTimeRange range;
-  final ValueChanged<_RangePreset> onPreset;
-  final VoidCallback onCustom;
-
-  const _RangeSelector({
-    required this.preset,
-    required this.range,
-    required this.onPreset,
-    required this.onCustom,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dateFmt = DateFormat.yMMMd();
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Date range', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final p in [
-                  _RangePreset.thisWeek,
-                  _RangePreset.thisMonth,
-                  _RangePreset.last30Days,
-                ])
-                  ChoiceChip(
-                    label: Text(p.label),
-                    selected: preset == p,
-                    onSelected: (_) => onPreset(p),
+              if (isLoading) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (errorMessage != null) {
+                return Center(child: Text('Error: $errorMessage'));
+              }
+              if (transactionCount == 0) {
+                return const Center(
+                  child: EmptyStatePlaceholder(
+                    icon: Icons.analytics_outlined,
+                    title: 'No reports yet',
+                    message:
+                        'Track some expenses to see your financial patterns here.',
                   ),
-                ActionChip(label: const Text('Custom'), onPressed: onCustom),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              '${dateFmt.format(range.start)} → ${dateFmt.format(range.end)}',
-              style: theme.textTheme.bodyMedium,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+                );
+              }
 
-enum _KpiKind { primary, secondary, tertiary }
-
-class _Kpi {
-  final String title;
-  final String value;
-  final _KpiKind kind;
-
-  _Kpi({required this.title, required this.value, required this.kind});
-}
-
-class _KpiRow extends StatelessWidget {
-  final List<_Kpi> kpis;
-  const _KpiRow({required this.kpis});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = Theme.of(context).colorScheme;
-
-    Color bg(_KpiKind k) => switch (k) {
-      _KpiKind.primary => c.primaryContainer,
-      _KpiKind.secondary => c.secondaryContainer,
-      _KpiKind.tertiary => c.tertiaryContainer,
-    };
-
-    Color fg(_KpiKind k) => switch (k) {
-      _KpiKind.primary => c.onPrimaryContainer,
-      _KpiKind.secondary => c.onSecondaryContainer,
-      _KpiKind.tertiary => c.onTertiaryContainer,
-    };
-
-    return Row(
-      children: [
-        for (int i = 0; i < kpis.length; i++) ...[
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: bg(kpis[i].kind),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    kpis[i].title,
-                    style: TextStyle(
-                      color: fg(kpis[i].kind),
-                      fontWeight: FontWeight.w600,
+              return CustomScrollView(
+                controller: _scrollController,
+                slivers: [
+                  // 6-3 · Range selector — compact chip row
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppLayout.screenPadding(context),
+                        vertical: AppSpacing.md,
+                      ),
+                      child: _buildRangeChips(context),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    kpis[i].value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: fg(kpis[i].kind),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
+
+                  // 6-1 · Compact sticky KPI bar
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _KPIHeaderDelegate(),
+                  ),
+
+                  SliverPadding(
+                    padding: EdgeInsets.only(
+                      left: AppLayout.screenPadding(context),
+                      right: AppLayout.screenPadding(context),
+                      top: AppSpacing.md,
+                      bottom: AppLayout.bottomPadding(context) + 40,
+                    ),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        // 6-2 · Scroll order
+                        // (1) period summary insight (Already in KPI section or above)
+
+                        // (2) heatmap ChartPanel
+                        _buildHeatmapSection(context),
+                        const SizedBox(height: AppSpacing.xl),
+
+                        // (3) trend chart ChartPanel
+                        // (4) pie chart ChartPanel
+                        _buildChartsSection(context),
+                        const SizedBox(height: AppSpacing.xl),
+
+                        // (5) top expenses list
+                        _buildTopExpensesSection(context),
+                      ]),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          // Global Export Loader
+          if (_isExporting)
+            Container(
+              color: Colors.black54,
+              child: Center(
+                child: Card(
+                  margin: const EdgeInsets.all(AppSpacing.xl),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xl),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(value: _exportProgress),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          _exportProgress != null
+                              ? 'Generating PDF (${(_exportProgress! * 100).toInt()}%)...'
+                              : 'Preparing export...',
+                          style: AppTextStyles.body(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRangeChips(BuildContext context) {
+    final provider = context.watch<ReportsProvider>();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: ReportsRangePreset.values.map((preset) {
+          final isSelected = provider.activePreset == preset;
+          return Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.sm),
+            child: ChoiceChip(
+              label: Text(preset.label),
+              selected: isSelected,
+              onSelected: (val) {
+                if (val) provider.setPreset(preset);
+              },
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildChartsSection(BuildContext context) {
+    return Selector<ReportsProvider, ReportsViewModel?>(
+      selector: (_, p) => p.viewModel,
+      builder: (context, vm, _) {
+        if (vm == null) return const SizedBox.shrink();
+
+        // 5-3 & 5-4 logic
+        final weekendVsWeekdayText = vm.weekdayAvg > 0
+            ? 'Weekends ${vm.weekendAvg > vm.weekdayAvg ? 'higher' : 'lower'} by ${((vm.weekendAvg - vm.weekdayAvg).abs() / vm.weekdayAvg * 100).toStringAsFixed(0)}% vs weekdays'
+            : null;
+
+        final peakDay = vm.dailySpending.isNotEmpty
+            ? vm.dailySpending.reduce((a, b) => a.value > b.value ? a : b)
+            : null;
+        final anomalyText =
+            (peakDay != null &&
+                vm.dailyAverage > 0 &&
+                peakDay.value > vm.dailyAverage * 2)
+            ? 'Spike on ${peakDay.displayLabel}: ${peakDay.value.format()} (${(peakDay.value / vm.dailyAverage * 100).toStringAsFixed(0)}% above avg)'
+            : null;
+
+        return Column(
+          children: [
+            ChartPanel(
+              title: 'Daily Spending Trend',
+              subtitle:
+                  '${DateFormat('MMM d').format(vm.activeRange.start)} - ${DateFormat('MMM d').format(vm.activeRange.end)} · ${vm.transactionCount} transactions · ${vm.dailyAverage.format()}/day',
+              keyFinding: peakDay != null
+                  ? 'Peak: ${peakDay.displayLabel} · ${peakDay.value.format()}'
+                  : null,
+              chart: Column(
+                children: [
+                  if (weekendVsWeekdayText != null) ...[
+                    InsightLine(
+                      icon: Icons.calendar_view_week,
+                      text: weekendVsWeekdayText,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (anomalyText != null) ...[
+                    InsightLine(
+                      icon: Icons.warning_amber_outlined,
+                      text: anomalyText,
+                      iconColor: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  AspectRatio(
+                    aspectRatio: 1.7,
+                    child: LineChartWidget(
+                      data: vm.dailySpending,
+                      color: Theme.of(context).colorScheme.primary,
+                      range: vm.activeRange,
+                      averageSpend: vm.dailyAverage,
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          if (i != kpis.length - 1) const SizedBox(width: 10),
-        ],
-      ],
-    );
-  }
-}
-
-class _InsightCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Widget child;
-
-  const _InsightCard({
-    required this.title,
-    required this.icon,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon),
-                const SizedBox(width: 8),
-                Text(title, style: theme.textTheme.titleMedium),
-              ],
-            ),
-            const SizedBox(height: 10),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyChartHint extends StatelessWidget {
-  final String message;
-  const _EmptyChartHint({this.message = 'Not enough data to show chart.'});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Text(message, style: theme.textTheme.bodyMedium),
-    );
-  }
-}
-
-class _TimePoint {
-  final String label;
-  final double value;
-
-  _TimePoint({required this.label, required this.value});
-}
-
-class _BarChartCard extends StatelessWidget {
-  final List<_TimePoint> points;
-  const _BarChartCard({required this.points});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final c = Theme.of(context).colorScheme;
-
-    final maxY = points.isEmpty
-        ? 0
-        : points.map((e) => e.value).reduce(math.max);
-    final roundedMaxY = (maxY <= 0) ? 10.0 : (maxY * 1.25);
-
-    return SizedBox(
-      height: 240,
-      child: BarChart(
-        BarChartData(
-          maxY: roundedMaxY,
-          gridData: FlGridData(show: true),
-          borderData: FlBorderData(show: false),
-          titlesData: FlTitlesData(
-            rightTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            topTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 42,
-                getTitlesWidget: (v, meta) => Text(
-                  v.toStringAsFixed(0),
-                  style: theme.textTheme.bodySmall,
+            const SizedBox(height: AppSpacing.lg),
+            ChartPanel(
+              title: 'Period Spending Breakdown',
+              subtitle: 'Bar chart view of spending over the active period',
+              chart: AspectRatio(
+                aspectRatio: 1.7,
+                child: BarChartWidget(
+                  data: vm.barPoints,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 32,
-                interval: 1,
-                getTitlesWidget: (v, meta) {
-                  final i = v.toInt();
-                  if (i < 0 || i >= points.length)
-                    return const SizedBox.shrink();
-                  return SideTitleWidget(
-                    meta: meta,
-                    space: 8,
-                    child: Text(
-                      points[i].label,
-                      style: theme.textTheme.bodySmall,
+            const SizedBox(height: AppSpacing.lg),
+            ChartPanel(
+              title: 'Spending by Category',
+              subtitle: 'Distribution of expenses across categories',
+              keyFinding: vm.topCategories.isNotEmpty
+                  ? 'Top: ${vm.topCategories.first.category} · ${vm.topCategories.first.percentage.toStringAsFixed(1)}%'
+                  : null,
+              chart: Column(
+                children: [
+                  if (vm.topCategories.isNotEmpty) ...[
+                    InsightLine(
+                      icon: Icons.pie_chart_outline,
+                      text:
+                          'Top category: ${vm.topCategories.first.category} · ${vm.topCategories.first.percentage.toStringAsFixed(1)}% of total spending',
                     ),
-                  );
+                    const SizedBox(height: 12),
+                  ],
+                  PieChartWidget(data: vm.categoryDistribution),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildHeatmapSection(BuildContext context) {
+    return Selector<ReportsProvider, ReportsViewModel?>(
+      selector: (_, p) => p.viewModel,
+      builder: (context, vm, _) {
+        if (vm == null) return const SizedBox.shrink();
+
+        return ChartPanel(
+          title: 'Activity Map',
+          subtitle: _isYearlyHeatmap
+              ? 'Yearly overview of spending intensity'
+              : 'Daily spending intensity for ${DateFormat('MMMM y').format(_heatmapMonth)}',
+          actions: [
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(
+                  value: false,
+                  label: Text('Month'),
+                  icon: Icon(Icons.calendar_view_month, size: 16),
+                ),
+                ButtonSegment(
+                  value: true,
+                  label: Text('Year'),
+                  icon: Icon(Icons.calendar_view_day, size: 16),
+                ),
+              ],
+              selected: {_isYearlyHeatmap},
+              onSelectionChanged: (val) {
+                setState(() => _isYearlyHeatmap = val.first);
+              },
+              showSelectedIcon: false,
+              style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            ),
+          ],
+          chart: Column(
+            children: [
+              if (!_isYearlyHeatmap) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left),
+                      onPressed: () => _navigateMonth(-1, null, null),
+                    ),
+                    Text(
+                      DateFormat('MMMM y').format(_heatmapMonth),
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right),
+                      onPressed: () => _navigateMonth(1, null, null),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              CalendarHeatmapWidget(
+                data: vm.rangeHeatmap,
+                month: _isYearlyHeatmap ? null : _heatmapMonth,
+                year: _heatmapMonth.year,
+                maxAmount: vm.maxDailySpent,
+                normalizationMax: vm.yearMaxDailySpend,
+                isYearOverview: _isYearlyHeatmap,
+                onMonthTap: (date) {
+                  setState(() {
+                    _heatmapMonth = date;
+                    _isYearlyHeatmap = false;
+                  });
+                },
+                onDayTap: (date, amount) {
+                  final criteria = FilterCriteria(date: date);
+                  context.read<AppNavigationProvider>().setIndex(1);
+                  Navigator.of(
+                    context,
+                  ).pushNamed('/activity', arguments: criteria);
                 },
               ),
-            ),
+            ],
           ),
-          barGroups: List.generate(points.length, (i) {
-            return BarChartGroupData(
-              x: i,
-              barRods: [
-                BarChartRodData(
-                  toY: points[i].value,
-                  color: c.primary,
-                  borderRadius: BorderRadius.circular(6),
-                  width: 14,
-                ),
-              ],
-            );
-          }),
-        ),
-      ),
+        );
+      },
     );
   }
-}
 
-class _CategoryPieCard extends StatelessWidget {
-  final Map<String, double> categoryTotals;
-  const _CategoryPieCard({required this.categoryTotals});
+  Widget _buildTopExpensesSection(BuildContext context) {
+    return Selector<ReportsProvider, ReportsViewModel?>(
+      selector: (_, p) => p.viewModel,
+      builder: (context, vm, _) {
+        if (vm == null || vm.topExpenses.isEmpty) {
+          return const SizedBox.shrink();
+        }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context).textTheme;
-    final c = Theme.of(context).colorScheme;
+        final colorScheme = Theme.of(context).colorScheme;
+        final topFive = vm.topExpenses.take(5).toList();
 
-    final entries = categoryTotals.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final total = entries.fold<double>(0, (s, e) => s + e.value);
-    if (total <= 0) return const _EmptyChartHint();
-
-    // Top 5 + Other
-    final top = entries.take(5).toList();
-    final otherSum = entries.skip(5).fold<double>(0, (s, e) => s + e.value);
-
-    final data = <MapEntry<String, double>>[
-      ...top,
-      if (otherSum > 0) MapEntry('Other', otherSum),
-    ];
-
-    final palette = <Color>[
-      c.primary,
-      c.tertiary,
-      c.secondary,
-      c.error,
-      c.primaryContainer,
-      c.tertiaryContainer,
-    ];
-
-    return Row(
-      children: [
-        SizedBox(
-          width: 170,
-          height: 170,
-          child: PieChart(
-            PieChartData(
-              sectionsSpace: 2,
-              centerSpaceRadius: 38,
-              sections: List.generate(data.length, (i) {
-                final value = data[i].value;
-                final pct = (value / total) * 100;
-                return PieChartSectionData(
-                  value: value,
-                  title: pct >= 12 ? '${pct.toStringAsFixed(0)}%' : '',
-                  radius: 56,
-                  color: palette[i % palette.length],
-                  titleStyle: theme.labelLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
+        return ChartPanel(
+          title: 'Top Expenses',
+          subtitle: 'Individual high-value transactions',
+          chart: Column(
+            children: [
+              ...topFive.asMap().entries.map((entry) {
+                final index = entry.key;
+                final expense = entry.value;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: colorScheme.surfaceContainerHighest,
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    expense.productName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(expense.category),
+                  trailing: Text(
+                    expense.amount.format(),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
                   ),
                 );
               }),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (int i = 0; i < data.length; i++)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: palette[i % palette.length],
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '${data[i].key} • ₹${data[i].value.toStringAsFixed(0)}',
-                          style: theme.bodyMedium,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    context.read<AppNavigationProvider>().setIndex(1);
+                    Navigator.of(context).pushNamed('/activity');
+                  },
+                  child: const Text('See all →'),
                 ),
+              ),
             ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
 
-class _TopExpensesList extends StatelessWidget {
-  final List<Expense> expenses;
-  const _TopExpensesList({required this.expenses});
-
+class _KPIHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     final theme = Theme.of(context);
-    final currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final colorScheme = theme.colorScheme;
 
-    return Column(
-      children: expenses.map((e) {
-        return ListTile(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          title: Text(e.productName, style: theme.textTheme.bodyLarge),
-          subtitle: Text(
-            '${e.category} • ${DateFormat.yMMMd().format(e.date)}',
+    return Selector<ReportsProvider, ReportsViewModel?>(
+      selector: (_, p) => p.viewModel,
+      builder: (context, vm, _) {
+        return Container(
+          height: 64,
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            border: Border(
+              bottom: BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+            ),
           ),
-          trailing: Text(
-            currency.format(e.amount),
-            style: theme.textTheme.titleSmall,
-          ),
+          child: vm == null
+              ? const SizedBox.shrink()
+              : Row(
+                  children: [
+                    _buildKPIItem(
+                      context,
+                      'Total Spent',
+                      vm.totalSpent.formatCompact(),
+                      colorScheme.primary,
+                    ),
+                    _buildKPIItem(
+                      context,
+                      'Count',
+                      '${vm.transactionCount}',
+                      colorScheme.onSurface,
+                    ),
+                    _buildKPIItem(
+                      context,
+                      'Avg/Day',
+                      vm.dailyAverage.formatCompact(),
+                      colorScheme.secondary,
+                    ),
+                  ],
+                ),
         );
-      }).toList(),
+      },
     );
   }
+
+  Widget _buildKPIItem(
+    BuildContext context,
+    String label,
+    String value,
+    Color color,
+  ) {
+    return Expanded(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  double get maxExtent => 64;
+
+  @override
+  double get minExtent => 64;
+
+  @override
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
+      true;
 }

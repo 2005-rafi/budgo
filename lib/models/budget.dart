@@ -2,13 +2,15 @@ import 'package:hive/hive.dart';
 
 part 'budget.g.dart';
 
+// SCHEMA VERSION: 1
+// Version 1: fields 0-6 (original)
 @HiveType(typeId: 3)
 class Budget extends HiveObject {
   @HiveField(0)
   String id;
 
   @HiveField(1)
-  double limit;
+  int limit;
 
   @HiveField(2)
   String period; // 'weekly' or 'monthly'

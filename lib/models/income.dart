@@ -2,6 +2,8 @@ import 'package:hive/hive.dart';
 
 part 'income.g.dart';
 
+// SCHEMA VERSION: 1
+// Version 1: fields 0-5 (original)
 @HiveType(typeId: 1)
 class Income extends HiveObject {
   @HiveField(0)
@@ -11,7 +13,7 @@ class Income extends HiveObject {
   String source; // Salary, Freelance, Gift, Other
 
   @HiveField(2)
-  double amount;
+  int amount;
 
   @HiveField(3)
   DateTime date;

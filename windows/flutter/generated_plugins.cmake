@@ -3,7 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  printing
+  flutter_timezone
   share_plus
   url_launcher_windows
 )
