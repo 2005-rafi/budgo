@@ -19,6 +19,7 @@ class ActivityService {
       'Expenses',
       'Income',
       'Planned',
+      'Today',
       'This Week',
       'This Month',
       'High Spend',
@@ -28,8 +29,14 @@ class ActivityService {
     // Map 'Lend/Borrow' category to 'Lend' in the specific categories check
     final mappedSpecificCategories = specificCategories.map((c) => c == 'Lend/Borrow' ? 'Lend' : c).toSet();
 
-    final showAll =
-        criteria.categories.isEmpty || criteria.categories.contains('All');
+    final showAll = criteria.categories.isEmpty ||
+        criteria.categories.contains('All') ||
+        criteria.categories.difference({
+          'Today',
+          'This Week',
+          'This Month',
+          'High Spend',
+        }).isEmpty;
 
     // If specific categories are selected, we show anything matching those categories.
     // Otherwise, we respect the Expenses/Income/Planned toggles.
@@ -215,15 +222,21 @@ class ActivityService {
       final now = DateTime.now();
       final monday = now.subtract(Duration(days: now.weekday - 1));
       final startOfWeek = DateTime(monday.year, monday.month, monday.day);
+      final sunday = monday.add(const Duration(days: 6));
+      final endOfWeek = DateTime(sunday.year, sunday.month, sunday.day, 23, 59, 59);
 
+      final startIdx = _firstIncomeLessThanOrEqual(result, endOfWeek);
       final endIdx = _firstIncomeLessThan(result, startOfWeek);
-      result = result.sublist(0, endIdx);
+      result = result.sublist(startIdx, endIdx);
     } else if (criteria.categories.contains('This Month')) {
       final now = DateTime.now();
       final startOfMonth = DateTime(now.year, now.month, 1);
+      final lastDay = _lastDayOfMonth(now.year, now.month);
+      final endOfMonth = DateTime(now.year, now.month, lastDay, 23, 59, 59);
 
+      final startIdx = _firstIncomeLessThanOrEqual(result, endOfMonth);
       final endIdx = _firstIncomeLessThan(result, startOfMonth);
-      result = result.sublist(0, endIdx);
+      result = result.sublist(startIdx, endIdx);
     } else if (criteria.categories.contains('Today')) {
       final now = DateTime.now();
       final todayStart = DateTime(now.year, now.month, now.day);
@@ -306,6 +319,35 @@ class ActivityService {
         if (f.dueDate!.isBefore(start) || f.dueDate!.isAfter(end)) return false;
       }
 
+      // Timing filters
+      if (f.dueDate != null) {
+        if (criteria.categories.contains('Today')) {
+          final now = DateTime.now();
+          final todayStart = DateTime(now.year, now.month, now.day);
+          final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+          if (f.dueDate!.isBefore(todayStart) || f.dueDate!.isAfter(todayEnd)) {
+            return false;
+          }
+        } else if (criteria.categories.contains('This Week')) {
+          final now = DateTime.now();
+          final monday = now.subtract(Duration(days: now.weekday - 1));
+          final startOfWeek = DateTime(monday.year, monday.month, monday.day);
+          final sunday = monday.add(const Duration(days: 6));
+          final endOfWeek = DateTime(sunday.year, sunday.month, sunday.day, 23, 59, 59);
+          if (f.dueDate!.isBefore(startOfWeek) || f.dueDate!.isAfter(endOfWeek)) {
+            return false;
+          }
+        } else if (criteria.categories.contains('This Month')) {
+          final now = DateTime.now();
+          final startOfMonth = DateTime(now.year, now.month, 1);
+          final lastDay = _lastDayOfMonth(now.year, now.month);
+          final endOfMonth = DateTime(now.year, now.month, lastDay, 23, 59, 59);
+          if (f.dueDate!.isBefore(startOfMonth) || f.dueDate!.isAfter(endOfMonth)) {
+            return false;
+          }
+        }
+      }
+
       return true;
     }).toList();
   }
@@ -360,5 +402,14 @@ class ActivityService {
       'December',
     ];
     return '${months[dt.month - 1]} ${dt.year}';
+  }
+
+  int _lastDayOfMonth(int year, int month) {
+    if (month == 2) {
+      final isLeapYear = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+      return isLeapYear ? 29 : 28;
+    }
+    const daysInMonths = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    return daysInMonths[month];
   }
 }

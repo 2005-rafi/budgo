@@ -15,6 +15,8 @@ class SmartNotificationTile extends StatelessWidget {
   final bool? isSwitchActive;
   final ValueChanged<bool>? onSwitchChanged;
   final VoidCallback? onDismiss;
+  final VoidCallback? onMarkPaid;
+  final Reminder? reminder;
 
   const SmartNotificationTile._({
     required this.type,
@@ -24,12 +26,15 @@ class SmartNotificationTile extends StatelessWidget {
     this.isSwitchActive,
     this.onSwitchChanged,
     this.onDismiss,
+    this.onMarkPaid,
+    this.reminder,
   });
 
   factory SmartNotificationTile.reminder({
     required Reminder reminder,
     required ValueChanged<bool> onToggle,
     required VoidCallback onTap,
+    VoidCallback? onMarkPaid,
   }) {
     final timeStr = DateFormat('MMM d, h:mm a').format(reminder.scheduledAt);
     final recurrenceLabel = reminder.isRecurring ? ' (${reminder.recurrenceType})' : '';
@@ -40,6 +45,8 @@ class SmartNotificationTile extends StatelessWidget {
       onTap: onTap,
       isSwitchActive: reminder.isActive,
       onSwitchChanged: onToggle,
+      onMarkPaid: onMarkPaid,
+      reminder: reminder,
     );
   }
 
@@ -80,25 +87,56 @@ class SmartNotificationTile extends StatelessWidget {
           child: Row(
             children: [
               // Left Icon container
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: type == SmartNotificationType.reminder
-                      ? colorScheme.primaryContainer
-                      : BudgoColors.warningColor(context).withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
+              if (type == SmartNotificationType.reminder && reminder != null) ...[
+                GestureDetector(
+                  onTap: reminder!.isActive ? onMarkPaid : null,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: !reminder!.isActive
+                          ? colorScheme.surfaceContainer
+                          : reminder!.paymentStatus == 'completed'
+                              ? colorScheme.primaryContainer
+                              : reminder!.paymentStatus == 'overdue'
+                                  ? colorScheme.errorContainer.withValues(alpha: 0.15)
+                                  : colorScheme.primaryContainer.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      !reminder!.isActive
+                          ? Icons.notifications_off_outlined
+                          : reminder!.paymentStatus == 'completed'
+                              ? Icons.check_circle
+                              : reminder!.paymentStatus == 'overdue'
+                                  ? Icons.error_outline
+                                  : Icons.circle_outlined,
+                      color: !reminder!.isActive
+                          ? colorScheme.onSurfaceVariant.withValues(alpha: 0.5)
+                          : reminder!.paymentStatus == 'completed'
+                              ? colorScheme.primary
+                              : reminder!.paymentStatus == 'overdue'
+                                  ? colorScheme.error
+                                  : colorScheme.primary,
+                      size: 20,
+                    ),
+                  ),
                 ),
-                child: Icon(
-                  type == SmartNotificationType.reminder
-                      ? Icons.notifications_none_outlined
-                      : Icons.warning_amber_outlined,
-                  color: type == SmartNotificationType.reminder
-                      ? colorScheme.onPrimaryContainer
-                      : BudgoColors.warningColor(context),
-                  size: 20,
+              ] else ...[
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: BudgoColors.warningColor(context).withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.warning_amber_outlined,
+                    color: BudgoColors.warningColor(context),
+                    size: 20,
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(width: AppSpacing.md),
 
               // Text details
@@ -145,3 +183,4 @@ class SmartNotificationTile extends StatelessWidget {
     );
   }
 }
+

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'package:expense/core/app_spacing.dart';
 import 'package:expense/core/app_radius.dart';
 import 'package:expense/provider/app_preferences_provider.dart';
@@ -8,6 +9,7 @@ import 'package:expense/provider/app_navigation_provider.dart';
 import 'package:expense/provider/expenses_provider.dart';
 import 'package:expense/provider/income_provider.dart';
 import 'package:expense/provider/future_expenses_provider.dart';
+import 'package:expense/provider/reminder_provider.dart';
 import 'package:expense/models/transaction_entry.dart';
 import 'package:expense/models/view_models/dashboard_view_model.dart';
 
@@ -231,6 +233,129 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
+
+                  // Zone 3.5 — Overdue Reminders Banner
+                  SliverToBoxAdapter(
+                    child: Consumer<ReminderProvider>(
+                      builder: (context, reminderProvider, child) {
+                        final overdue = reminderProvider.items
+                            .where((r) => r.isActive && r.paymentStatus == 'overdue')
+                            .toList();
+                        if (overdue.isEmpty) return const SizedBox.shrink();
+
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.base,
+                            AppSpacing.md,
+                            AppSpacing.base,
+                            0,
+                          ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Theme.of(context).colorScheme.error.withValues(alpha: 0.3),
+                                width: 1,
+                              ),
+                            ),
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.warning_amber_rounded,
+                                      color: Theme.of(context).colorScheme.error,
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Text(
+                                      'Overdue Bills (${overdue.length})',
+                                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: Theme.of(context).colorScheme.onErrorContainer,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+                                ...overdue.map((reminder) {
+                                  final amountText = reminder.amount != null
+                                      ? ' • ₹ ${(reminder.amount! / 100.0).toStringAsFixed(2)}'
+                                      : '';
+                                  return Card(
+                                    elevation: 0,
+                                    color: Theme.of(context).colorScheme.surface,
+                                    margin: const EdgeInsets.symmetric(vertical: 4),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(AppSpacing.md),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  reminder.title,
+                                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  'Due ${DateFormat('MMM d, y h:mm a').format(reminder.scheduledAt)}$amountText',
+                                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: AppSpacing.sm),
+                                          IconButton.filledTonal(
+                                            onPressed: () async {
+                                              final success = await reminderProvider.markAsPaid(reminder);
+                                              if (success && context.mounted) {
+                                                SnackbarFeedback.showSuccess(context, 'Marked as paid');
+                                              }
+                                            },
+                                            icon: const Icon(Icons.check, size: 18),
+                                            tooltip: 'Mark Paid',
+                                            style: IconButton.styleFrom(
+                                              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                                              foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                                            ),
+                                          ),
+                                          IconButton.filledTonal(
+                                            onPressed: () async {
+                                              final success = await reminderProvider.remindLater(reminder);
+                                              if (success && context.mounted) {
+                                                SnackbarFeedback.showSuccess(context, 'Postponed by 6 hours');
+                                              }
+                                            },
+                                            icon: const Icon(Icons.snooze, size: 18),
+                                            tooltip: 'Remind Later',
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
 
                   // Zone 4 — Onboarding or Recent Activity
                   if (isEmpty) ...[

@@ -40,9 +40,25 @@ class ReminderProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final list = await _repository.getAll();
+      final now = DateTime.now();
+      bool changed = false;
       _itemMap.clear();
       for (var reminder in list) {
+        if (reminder.isActive &&
+            reminder.paymentStatus == 'pending' &&
+            reminder.scheduledAt.isBefore(now)) {
+          reminder.paymentStatus = 'overdue';
+          await _repository.update(reminder);
+          changed = true;
+        }
         _itemMap[reminder.id] = reminder;
+      }
+      if (changed) {
+        final updatedList = await _repository.getAll();
+        _itemMap.clear();
+        for (var reminder in updatedList) {
+          _itemMap[reminder.id] = reminder;
+        }
       }
     } catch (e) {
       _errorMessage = 'Failed to load reminders: $e';
@@ -50,6 +66,7 @@ class ReminderProvider extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
   }
+
 
   Future<bool> addReminder(Reminder reminder) async {
     _isLoading = true;
@@ -102,7 +119,9 @@ class ReminderProvider extends ChangeNotifier {
             scheduledTime: scheduledTime,
             recurrence: reminder.recurrenceType,
             recurrenceRule: reminder.recurrenceRule,
+            payload: reminder.id,
           );
+
 
           scheduleSuccess = success;
 
@@ -190,7 +209,9 @@ class ReminderProvider extends ChangeNotifier {
             scheduledTime: scheduledTime,
             recurrence: reminder.recurrenceType,
             recurrenceRule: reminder.recurrenceRule,
+            payload: reminder.id,
           );
+
 
           scheduleSuccess = success;
 
@@ -297,7 +318,9 @@ class ReminderProvider extends ChangeNotifier {
           scheduledTime: scheduledTime,
           recurrence: reminder.recurrenceType,
           recurrenceRule: reminder.recurrenceRule,
+          payload: reminder.id,
         );
+
       } else {
         await _notificationService.cancelReminder(reminder.notificationId);
       }
@@ -333,6 +356,88 @@ class ReminderProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> markAsPaid(Reminder reminder) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      if (reminder.isRecurring && reminder.recurrenceType != 'none') {
+        final nextTime = _computeNextOccurrence(
+          reminder.scheduledAt,
+          reminder.recurrenceRule,
+          reminder.recurrenceType,
+        );
+        reminder.scheduledAt = nextTime;
+        reminder.paymentStatus = 'pending';
+        reminder.state = 'active';
+        
+        _skipNextWatch = true;
+        await _repository.update(reminder);
+        
+        await _notificationService.cancelReminder(reminder.notificationId);
+        await _notificationService.scheduleReminder(
+          id: reminder.notificationId,
+          title: reminder.title,
+          body: reminder.notificationBody,
+          scheduledTime: nextTime,
+          recurrence: reminder.recurrenceType,
+          recurrenceRule: reminder.recurrenceRule,
+          payload: reminder.id,
+        );
+      } else {
+        reminder.isActive = false;
+        reminder.paymentStatus = 'completed';
+        
+        _skipNextWatch = true;
+        await _repository.update(reminder);
+        await _notificationService.cancelReminder(reminder.notificationId);
+      }
+      await load();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Failed to mark reminder as paid: $e';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> remindLater(Reminder reminder) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final nextTime = DateTime.now().add(const Duration(hours: 6));
+      reminder.scheduledAt = nextTime;
+      reminder.paymentStatus = 'pending';
+      
+      _skipNextWatch = true;
+      await _repository.update(reminder);
+      
+      await _notificationService.cancelReminder(reminder.notificationId);
+      await _notificationService.scheduleReminder(
+        id: reminder.notificationId,
+        title: reminder.title,
+        body: reminder.notificationBody,
+        scheduledTime: nextTime,
+        recurrence: reminder.recurrenceType,
+        recurrenceRule: reminder.recurrenceRule,
+        payload: reminder.id,
+      );
+      
+      await load();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Failed to postpone reminder: $e';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+
   Future<void> rescheduleRecurringReminders() async {
     _errorMessage = null;
     try {
@@ -358,7 +463,9 @@ class ReminderProvider extends ChangeNotifier {
             scheduledTime: nextTime,
             recurrence: reminder.recurrenceType,
             recurrenceRule: reminder.recurrenceRule,
+            payload: reminder.id,
           );
+
         }
       }
     } catch (e) {

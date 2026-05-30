@@ -169,6 +169,9 @@ class Reminder extends HiveObject {
   @HiveField(11)
   String? category; // Payment Category
 
+  @HiveField(12, defaultValue: 'pending')
+  String paymentStatus; // 'pending', 'completed', 'overdue'
+
   Reminder({
     required this.id,
     required this.title,
@@ -182,6 +185,7 @@ class Reminder extends HiveObject {
     this.failureReason,
     this.amount,
     this.category,
+    this.paymentStatus = 'pending',
   });
 
   RecurrenceRule? get recurrenceRule {

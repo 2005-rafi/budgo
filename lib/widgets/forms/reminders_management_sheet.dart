@@ -112,6 +112,17 @@ class RemindersManagementSheet extends StatelessWidget {
                                   );
                                 }
                               },
+                              onMarkPaid: () async {
+                                final success = await provider.markAsPaid(reminder);
+                                if (success && context.mounted) {
+                                  SnackbarFeedback.showSuccess(context, 'Marked as paid');
+                                } else if (!success && context.mounted) {
+                                  SnackbarFeedback.showError(
+                                    context,
+                                    provider.errorMessage ?? 'Failed to mark as paid',
+                                  );
+                                }
+                              },
                               onTap: () {
                                 showDialog(
                                   context: context,

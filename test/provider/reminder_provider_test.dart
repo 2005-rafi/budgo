@@ -55,6 +55,7 @@ class FakeNotificationService implements NotificationService {
     required DateTime scheduledTime,
     String recurrence = 'none',
     RecurrenceRule? recurrenceRule,
+    String? payload,
   }) async {
     scheduled.add(id);
     return true;
@@ -138,5 +139,79 @@ void main() {
     expect(provider.items.first.isActive, false);
     await provider.toggleActive(reminder);
     expect(provider.items.first.isActive, true);
+  });
+
+  test('markAsPaid updates non-recurring reminder to completed and inactive', () async {
+    final repo = FakeReminderRepository();
+    final notif = FakeNotificationService();
+    final provider = ReminderProvider(repo, notif);
+    final reminder = Reminder(
+      id: '4',
+      title: 'One-time',
+      scheduledAt: DateTime.now().add(const Duration(minutes: 10)),
+      isRecurring: false,
+      recurrenceType: 'none',
+      isActive: true,
+      paymentStatus: 'pending',
+    );
+    await provider.addReminder(reminder);
+    expect(provider.items.first.paymentStatus, 'pending');
+    expect(provider.items.first.isActive, true);
+
+    final result = await provider.markAsPaid(reminder);
+    expect(result, true);
+    expect(provider.items.first.paymentStatus, 'completed');
+    expect(provider.items.first.isActive, false);
+    expect(notif.cancelled.contains(reminder.notificationId), true);
+  });
+
+  test('markAsPaid updates recurring reminder to next occurrence and pending status', () async {
+    final repo = FakeReminderRepository();
+    final notif = FakeNotificationService();
+    final provider = ReminderProvider(repo, notif);
+    final baseTime = DateTime(2026, 5, 30, 9, 0);
+    final reminder = Reminder(
+      id: '5',
+      title: 'Recurring',
+      scheduledAt: baseTime,
+      isRecurring: true,
+      recurrenceType: 'daily',
+      isActive: true,
+      paymentStatus: 'pending',
+    );
+    await provider.addReminder(reminder);
+
+    final result = await provider.markAsPaid(reminder);
+    expect(result, true);
+    expect(provider.items.first.paymentStatus, 'pending');
+    expect(provider.items.first.isActive, true);
+    expect(provider.items.first.scheduledAt, baseTime.add(const Duration(days: 1)));
+    expect(notif.cancelled.contains(reminder.notificationId), true);
+    expect(notif.scheduled.contains(reminder.notificationId), true);
+  });
+
+  test('remindLater postpones reminder by 6 hours', () async {
+    final repo = FakeReminderRepository();
+    final notif = FakeNotificationService();
+    final provider = ReminderProvider(repo, notif);
+    final reminder = Reminder(
+      id: '6',
+      title: 'Postpone',
+      scheduledAt: DateTime.now().add(const Duration(minutes: 10)),
+      isRecurring: false,
+      recurrenceType: 'none',
+      isActive: true,
+      paymentStatus: 'pending',
+    );
+    await provider.addReminder(reminder);
+
+    final originalTime = reminder.scheduledAt;
+    final result = await provider.remindLater(reminder);
+    expect(result, true);
+    expect(provider.items.first.paymentStatus, 'pending');
+    expect(provider.items.first.isActive, true);
+    expect(provider.items.first.scheduledAt.isAfter(originalTime), true);
+    expect(notif.cancelled.contains(reminder.notificationId), true);
+    expect(notif.scheduled.contains(reminder.notificationId), true);
   });
 }

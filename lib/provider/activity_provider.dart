@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:expense/models/filter_criteria.dart';
 import 'package:flutter/foundation.dart';
 import 'package:expense/models/view_models/activity_view_model.dart';
@@ -105,15 +106,21 @@ class ActivityProvider extends ChangeNotifier {
       final now = DateTime.now();
       final monday = now.subtract(Duration(days: now.weekday - 1));
       final startOfWeek = DateTime(monday.year, monday.month, monday.day);
+      final sunday = monday.add(const Duration(days: 6));
+      final endOfWeek = DateTime(sunday.year, sunday.month, sunday.day, 23, 59, 59);
 
+      final startIdx = _firstIndexLessThanOrEqual(result, endOfWeek);
       final endIdx = _firstIndexLessThan(result, startOfWeek);
-      result = result.sublist(0, endIdx);
+      result = result.sublist(startIdx, endIdx);
     } else if (criteria.categories.contains('This Month')) {
       final now = DateTime.now();
       final startOfMonth = DateTime(now.year, now.month, 1);
+      final lastDay = _lastDayOfMonth(now.year, now.month);
+      final endOfMonth = DateTime(now.year, now.month, lastDay, 23, 59, 59);
 
+      final startIdx = _firstIndexLessThanOrEqual(result, endOfMonth);
       final endIdx = _firstIndexLessThan(result, startOfMonth);
-      result = result.sublist(0, endIdx);
+      result = result.sublist(startIdx, endIdx);
     } else if (criteria.categories.contains('Today')) {
       final now = DateTime.now();
       final todayStart = DateTime(now.year, now.month, now.day);
@@ -155,7 +162,12 @@ class ActivityProvider extends ChangeNotifier {
 
       if (hasHighSpend && result.isNotEmpty) {
         final sortedAmounts = result.map((e) => e.amount).toList()..sort();
-        final threshold = sortedAmounts[(sortedAmounts.length * 0.9).floor()];
+        int k = max(5, (result.length * 0.1).ceil());
+        if (k > result.length) {
+          k = result.length;
+        }
+        final thresholdIndex = sortedAmounts.length - k;
+        final threshold = sortedAmounts[thresholdIndex];
         result = result.where((e) => e.amount >= threshold).toList();
       }
     }
@@ -195,5 +207,14 @@ class ActivityProvider extends ChangeNotifier {
     _incomeProvider.removeListener(_onDependencyChanged);
     _futureExpensesProvider.removeListener(_onDependencyChanged);
     super.dispose();
+  }
+
+  int _lastDayOfMonth(int year, int month) {
+    if (month == 2) {
+      final isLeapYear = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+      return isLeapYear ? 29 : 28;
+    }
+    const daysInMonths = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    return daysInMonths[month];
   }
 }
