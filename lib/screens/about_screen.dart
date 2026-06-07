@@ -2,9 +2,56 @@ import 'package:flutter/material.dart';
 import 'package:expense/core/app_spacing.dart';
 import 'package:expense/widgets/common/app_card.dart';
 import 'package:expense/widgets/common/app_settings_tile.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:expense/core/legal_policies.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
+
+  Future<void> _launchUrl(BuildContext context, String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not launch $urlString')),
+        );
+      }
+    }
+  }
+
+  void _showPolicyDialog(BuildContext context, String title, String markdownData) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Markdown(
+              data: markdownData,
+              styleSheet: MarkdownStyleSheet(
+                p: Theme.of(context).textTheme.bodyMedium,
+                h1: Theme.of(context).textTheme.headlineSmall,
+                h2: Theme.of(context).textTheme.titleLarge,
+              ),
+              onTapLink: (text, href, title) {
+                if (href != null) {
+                  _launchUrl(context, href);
+                }
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -121,21 +168,21 @@ class AboutScreen extends StatelessWidget {
                   type: AppSettingsTileType.navigation,
                   title: 'Email Support',
                   leadingIcon: Icons.support_agent_outlined,
-                  onTap: () {},
+                  onTap: () => _launchUrl(context, 'mailto:2005.mohammedrafi.h@gmail.com?subject=Budgo%20Support'),
                 ),
                 const Divider(height: 1, indent: AppSpacing.base),
                 AppSettingsTile(
                   type: AppSettingsTileType.navigation,
                   title: 'Report Issue',
                   leadingIcon: Icons.bug_report_outlined,
-                  onTap: () {},
+                  onTap: () => _launchUrl(context, 'https://github.com/2005-rafi/budgo/issues'),
                 ),
                 const Divider(height: 1, indent: AppSpacing.base),
                 AppSettingsTile(
                   type: AppSettingsTileType.navigation,
                   title: 'Feature Request',
                   leadingIcon: Icons.lightbulb_outline,
-                  onTap: () {},
+                  onTap: () => _launchUrl(context, 'https://github.com/2005-rafi/budgo/issues'),
                 ),
               ],
             ),
@@ -151,14 +198,14 @@ class AboutScreen extends StatelessWidget {
                   type: AppSettingsTileType.navigation,
                   title: 'GitHub Repository',
                   leadingIcon: Icons.code,
-                  onTap: () {},
+                  onTap: () => _launchUrl(context, 'https://github.com/2005-rafi/budgo'),
                 ),
                 const Divider(height: 1, indent: AppSpacing.base),
                 AppSettingsTile(
                   type: AppSettingsTileType.navigation,
                   title: 'Release Notes',
                   leadingIcon: Icons.article_outlined,
-                  onTap: () {},
+                  onTap: () => _launchUrl(context, 'https://github.com/2005-rafi/budgo/releases'),
                 ),
               ],
             ),
@@ -174,21 +221,21 @@ class AboutScreen extends StatelessWidget {
                   type: AppSettingsTileType.navigation,
                   title: 'Privacy Policy',
                   leadingIcon: Icons.privacy_tip_outlined,
-                  onTap: () {},
+                  onTap: () => _showPolicyDialog(context, 'Privacy Policy', LegalPolicies.privacyPolicy),
                 ),
                 const Divider(height: 1, indent: AppSpacing.base),
                 AppSettingsTile(
                   type: AppSettingsTileType.navigation,
                   title: 'Terms of Use',
                   leadingIcon: Icons.description_outlined,
-                  onTap: () {},
+                  onTap: () => _showPolicyDialog(context, 'Terms of Use', LegalPolicies.termsOfUse),
                 ),
                 const Divider(height: 1, indent: AppSpacing.base),
                 AppSettingsTile(
                   type: AppSettingsTileType.navigation,
                   title: 'End User License Agreement',
                   leadingIcon: Icons.assignment_outlined,
-                  onTap: () {},
+                  onTap: () => _showPolicyDialog(context, 'End User License Agreement', LegalPolicies.eula),
                 ),
               ],
             ),
