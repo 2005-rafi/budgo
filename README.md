@@ -1,31 +1,167 @@
+# 1. Project Title
 # Budgo — Professional Expense & Financial Management App
+An offline-first, high-performance personal finance and expense management application built using Flutter.
 
-Budgo is an offline-first, high-performance personal finance and expense management application built using Flutter. It is designed to be visually stunning, highly performant, and structurally robust. The application employs state-of-the-art software engineering principles, Material 3 design system tokens, thread-safe asynchronous concurrency, and algorithmic optimizations to support a smooth, crash-free user experience over years of transaction history.
+**Mission:** Empower individuals to track, budget, and master their daily finances with zero latency, absolute privacy, and stunning design.
 
 ---
 
-## 1. Architectural System Overview
+# 2. Project Overview
 
-Budgo implements a highly modular, decoupled layered architecture, separating concerns into discrete, single-responsibility boundaries.
+**What problem exists?** Traditional financial trackers suffer from bloated network requests, laggy interfaces, and subscription models. They often fail to manage large histories of records over years, leading to stuttering interfaces and memory leaks.
+**Why was this application created?** To provide a lightning-fast, offline-first alternative that leverages modern structural architecture and caching techniques.
+**What solution does it provide?** Budgo delivers an entirely offline, privacy-focused ledger with advanced budgeting, interactive analytics, wishlist tracking, and automated reminders.
+**Who are the intended users?** Freelancers, students, budget-conscious individuals, and privacy advocates.
+**What value does it deliver?** Instantaneous financial insights, zero data tracking, and a premium user experience free from delays or ads.
+
+---
+
+# 3. Project Vision
+
+**Future direction:** Budgo aims to become a comprehensive localized financial ecosystem, supporting multi-profile management and localized backups while remaining 100% offline.
+**Intended ecosystem:** Core mobile applications on iOS and Android with a potential future desktop extension.
+**Long-term impact:** Establish a standard for how privacy-first financial tools should be architected in Flutter.
+**Strategic goals:** Support 10+ years of user transaction history without dropping below 60/120 FPS on standard devices.
+
+---
+
+# 4. Problem Statement
+
+**Existing limitations:** Network-reliant apps are slow in low-connectivity areas. Existing offline apps often lack polished UI/UX or crash with large databases.
+**User pain points:** Laggy search functions, complex spreadsheet exports, forgotten recurring bills, and difficult budget tracking.
+**Market gaps:** A truly premium, aesthetically pleasing, completely free offline ledger built with modern architectural guidelines.
+**Technical challenges:** Parsing and querying thousands of NoSQL entries instantly, avoiding UI thread blocking during PDF/CSV exports, and scheduling robust background alarms.
+
+---
+
+# 5. Objectives
+
+- Provide instantaneous UI interactions via custom sliding windows and min-heap algorithms.
+- Reduce manual effort by introducing draft-confirm income logic and automatic wishlist conversions.
+- Provide intelligent recommendations through an insight engine that translates metrics into human-readable alerts.
+- Enable robust offline processing via Isolate-driven thread offloading.
+
+---
+
+# 6. Target Audience
+
+- **End Users:** Individuals wanting granular control over their daily and monthly cash flow.
+- **Developers:** Open-source contributors and students looking for an enterprise-level architecture reference in Flutter.
+- **Professionals:** Freelancers needing quick, exportable PDF/CSV reports.
+
+---
+
+# 7. Feature Overview
+
+- **Core Module:** Home Dashboard, App Readiness Bootstrap.
+- **Ledger Module:** Expenses tracking, Category management, Income drafts.
+- **Planning Module:** Wishlist/Future Expenses planner, Budget configurations.
+- **Analytics Module:** Reports engine, Fl_Chart integrations, Activity Heatmap.
+- **Utilities Module:** Push Notifications, Report Exports, Dynamic Currencies.
+
+---
+
+# 8. Detailed Feature Breakdown
+
+### Robust Expense Ledger
+- **Purpose:** Core financial tracking.
+- **Functionality:** Add, edit, delete, and categorize expenses instantly.
+- **User Interaction:** Bottom sheet forms for quick entry, swipe-to-delete actions on tiles.
+- **Technical Implementation:** Backed by Hive; implements an Inverted Prefix Search Index for $O(K \log M)$ search complexity.
+
+### Draft-Confirm Income Workflow
+- **Purpose:** Allows users to log expected income before it clears in their bank.
+- **Functionality:** Incomes are logged as "pending/draft". Confirming them modifies the active budget snapshot.
+- **User Interaction:** Swipe-right on an income tile to confirm it instantly.
+- **Technical Implementation:** Managed via `IncomeProvider` coordinating state mutations with the `BudgetProvider`.
+
+### Wishlist Planner
+- **Purpose:** Goal setting and future spending preparation.
+- **Functionality:** Track items to buy, marking high priority items.
+- **User Interaction:** 1-tap conversion of a planned item into an actual ledger expense.
+- **Technical Implementation:** Links the newly created expense with the wishlist item's ID for potential rollbacks.
+
+### Smart Budgeting Engine
+- **Purpose:** Prevent overspending.
+- **Functionality:** Set weekly/monthly limits and view progress bars.
+- **User Interaction:** Dashboard widget updates dynamically based on the current threshold.
+- **Technical Implementation:** Uses `AlertThrottleService` to track daily warnings, ensuring users aren't spammed with alerts.
+
+### Interactive Analytical Deck
+- **Purpose:** Visual financial insights.
+- **Functionality:** Pie charts, line trends, and daily heatmaps.
+- **User Interaction:** Tap to filter by date ranges; view heatmap intensities for spending velocity.
+- **Technical Implementation:** `fl_chart` library driven by `ReportsProvider`, utilizing Top-K Min-Heap algorithms to isolate heavy spending categories rapidly.
+
+### Push Reminders
+- **Purpose:** Automate recurring bill notifications.
+- **Functionality:** Schedule background alerts for dues.
+- **User Interaction:** Set reminders through the UI; interact with "Mark Paid" directly from the OS notification tray.
+- **Technical Implementation:** Utilizes `flutter_local_notifications` with inexact `AlarmManager` intents and isolated background handlers safely initializing the Timezone DB in isolated Dart execution contexts.
+
+---
+
+# 9. Application Workflow
+
+1. **Onboarding/Startup:** The app initializes Hive and runs data migrations in `AppInitializer.preInit`, followed by UI readiness in `postInit`.
+2. **Dashboard:** The user lands on the Home Screen showing the primary Budget Card, Top 5 Expenses, and quick action FAB.
+3. **Transaction Entry:** User taps "+" -> A dynamic bottom sheet slides up -> Inputs amount, title, and category -> Saves.
+4. **Analysis:** User navigates to the Reports tab -> Selects a date range -> Views generated charts -> Clicks "Export" to offload PDF generation to an Isolate -> Shares the document natively.
+5. **Review:** User checks the Activity tab, uses the prefix search to find an old record, and swipes left to delete it.
+
+---
+
+# 10. Screenshots
+
+> All screens follow a unified Material 3 standard.
+<table>
+  <tr>
+    <td><img src="assets/screenshots/Home Screen.jpg" width="250"/></td>
+    <td><img src="assets/screenshots/Activity Screen.jpg" width="250"/></td>
+    <td><img src="assets/screenshots/Settings Screen.jpg" width="250"/></td>
+  </tr>
+  <tr>
+    <td><img src="assets/screenshots/Report Screen - Pie Chart.jpg" width="250"/></td>
+    <td><img src="assets/screenshots/Report Screen - Charts.jpg" width="250"/></td>
+    <td><img src="assets/screenshots/Report Screen - Heatmap.jpg" width="250"/></td>
+  </tr>
+</table>
+
+---
+
+# 11. System Architecture
+
+### Architectural Pattern
+Budgo utilizes a **Layered Architecture** built over the **Provider pattern** for state management, loosely combining elements of Clean Architecture for domain separation.
+
+### Layer Breakdown
+- **Presentation Layer:** Pure stateless consumption widgets and UI event triggers.
+- **State & Logic Layer (Providers):** Central nervous system. `ProxyProviders` handle dependency injection between branches (e.g., BudgetProvider needing IncomeProvider).
+- **Service & Utilities Layer:** Distinct singleton services isolating heavy processes (e.g., `ReportExportService` running independent Isolates).
+- **Data Access Layer (Repositories):** Interfaces hiding Hive box implementations.
+- **Persistence Layer:** Physical binary storage via Hive NoSQL.
+
+---
+
+# 12. Architecture Diagram
 
 ```mermaid
 graph TD
     subgraph Presentation Layer
-        UI[Screens & Custom Widgets] --> Shell[AppShell & Navigation]
+        UI[Screens & Widgets] --> Shell[AppShell & Nav]
     end
 
     subgraph State & Business Logic Layer
-        Provider[ChangeNotifier Providers] --> ViewModels[Reports & Dashboard VMs]
+        Provider[ChangeNotifier Providers] --> ViewModels[ViewModels]
     end
 
-    subgraph Service & Utilities Layer
+    subgraph Service Layer
         Isolates[Isolates / Export Service]
-        Insights[Insight Engine & Alerts]
-        Notifier[AppReadiness & Startup]
+        Insights[Insight Engine]
     end
 
     subgraph Data Access Layer
-        Repo[Repository Interfaces] --> HiveRepo[Hive Concrete Repositories]
+        Repo[Repository Interfaces] --> HiveRepo[Hive Repositories]
     end
 
     subgraph Persistence Layer
@@ -38,296 +174,276 @@ graph TD
     Repo --> Hive
     Provider --> Isolates
     Provider --> Insights
-    Shell --> Notifier
 ```
 
-### 1.1 Architectural Layers
+---
 
-1. **Presentation Layer (`lib/screens/`, `lib/widgets/`)**:
-   - Composed of pure Flutter widgets structured using Material 3 specifications.
-   - All UI widgets are consumption-only (subscribing to Providers) or stateless presentation modules. Forms are displayed dynamically as content-driven bottom sheets.
-2. **State & Logic Layer (`lib/provider/`)**:
-   - Manages state using the `Provider` library.
-   - Uses `ProxyProvider` patterns to wire dependencies (e.g., injecting `ExpensesProvider` and `IncomeProvider` into `BudgetProvider` or `DashboardProvider`) to construct clean reactive graphs.
-3. **Data Access Layer (`lib/repositories/`)**:
-   - Implements the Repository Pattern, abstracting Hive boxes behind interfaces.
-   - Decouples local storage engines from business logic, ensuring that database updates do not leak implementation details.
-4. **Persistence Layer (`Hive`, `SharedPreferences`)**:
-   - Uses **Hive** for high-speed, local NoSQL persistence.
-   - Uses **SharedPreferences** for lightweight user preferences, themes, and notification metrics.
-5. **Services/Utilities Layer (`lib/services/`, `lib/core/`)**:
-   - Dedicated managers for heavy background processing: thread-isolated CSV/PDF compilation, alerts throttling, timezone-aware push notifications, database migrations, and job reconciliation.
+# 13. Technology Stack
+
+- **Frontend:** Flutter & Dart
+- **Backend:** N/A (100% Offline-First)
+- **Database:** Hive (NoSQL Key-Value Store)
 
 ---
 
-## 2. Startup Bootstrapping & Crash Recovery
+# 14. Development Environment
 
-Budgo splits initialization into two distinct phases to guarantee a fast startup time and ensure that incomplete state writes are resolved before the UI loads.
-
-```mermaid
-sequenceDiagram
-    participant Main as main.dart
-    participant Init as AppInitializer
-    participant DB as Hive Boxes
-    participant Job as JobReconciler
-    participant Pro as Providers
-    participant Ready as AppReadinessNotifier
-    participant UI as Splash / Home
-
-    Main->>Init: preInit()
-    activate Init
-    Init->>DB: Open boxes & apply migrations
-    Init->>Job: reconcile() (clean temp files, check pending)
-    Init-->>Main: SharedPreferences instance
-    deactivate Init
-
-    Main->>Pro: Wire provider graph
-    Main->>Init: postInit(Providers, AppReadiness)
-    activate Init
-    Init->>Pro: initialize() (load database keys)
-    Init->>Job: reconcileReminders()
-    Init->>Ready: markReady()
-    deactivate Init
-
-    Ready-->>UI: Transition from Splash to AppShell
-```
-
-- **Pre-Initialization Phase (`AppInitializer.preInit`)**:
-  - Initializes Flutter bindings, Hive local directory, and registers adapters.
-  - Opens database boxes using the `HiveMigration` safety engine.
-  - Triggers the `JobReconciler` to perform file cleanup and recover incomplete processes.
-- **Post-Initialization Phase (`AppInitializer.postInit`)**:
-  - Automatically checks the `AppStateBox.isPendingReset` flag. If the app crashed during a destructive reset, a recovery script runs immediately to purge half-deleted databases.
-  - Loads data into provider caches asynchronously, initialises timezone-aware push notifications, and marks `AppReadinessNotifier.ready = true` to fade out the `SplashScreen` and launch the `AppShell`.
+- **Flutter Version:** `^3.x.x`
+- **Dart Version:** `^3.8.1`
+- **IDE:** Android Studio / VS Code
+- **Operating System:** Cross-platform (Windows / macOS)
+- **SDK Requirements:** Android API 33+, iOS 14.0+
 
 ---
 
-## 3. High-Performance Algorithmic Optimizations
+# 15. Project Structure
 
-To handle **5+ years of continuous daily transaction records** without frames dropping, memory leaks, or crashes, Budgo integrates the following computer science optimization strategies:
-
-### 3.1 Custom Sliding Window Pagination
-Loading thousands of complex custom widgets in a standard scroll view causes high memory footprints and CPU overhead. Budgo implements a double-ended sliding viewport within the `ExpensesProvider`:
-- Filters are applied on the full in-memory list.
-- A sliding viewport limits the visible subset to `kExpenseWindowSize = 100` items.
-- As the user scrolls, `ScrollController` triggers `advanceWindow()` and `retreatWindow()`, loading slices dynamically in $O(1)$ time and keeping widget trees compact.
-
-### 3.2 Inverted Prefix Search Index
-Traditional database search queries run $O(N)$ regex string searches over thousands of records, causing stutter. Budgo constructs an in-memory **Inverted Prefix Index** on data load:
-- Product names and categories are tokenized into lower-case prefix keys (1 to 3 characters).
-- Map structures map these prefixes directly to Hive object keys: `Map<String, Set<int>> _prefixIndex`.
-- Searching runs a set intersection on matching prefixes, sorted by size (smallest set evaluated first). The worst-case search complexity is reduced to $O(K \log M)$ (where $K$ is the number of query tokens, and $M$ is the size of the smallest subset), ensuring instant search results.
-
-### 3.3 Top-K Min-Heap Analytics
-To display the top spending items on the Reports screen, sorting a database of several thousand transactions takes $O(N \log N)$ time.
-- Budgo utilizes a heap-based priority queue (`HeapPriorityQueue` from the `collection` package) inside `getTopK` (`lib/core/top_k.dart`).
-- By keeping a Min-Heap of size $K$, the time complexity is optimized to $O(N \log K)$. For $K = 5$ or $K = 10$, this runs practically instantaneously.
-
-### 3.4 Thread-Offloaded CPU Processing via Isolates
-Creating massive CSV strings or rendering multi-page PDF tables can block Flutter's main UI thread, causing visual freezes (jank).
-- **Exporting Data (`ReportExportService`)**: Spawns independent Dart **Isolates** via `Isolate.spawn` and `compute()`.
-- Data serialization and PDF rendering occur on a background thread.
-- Progress updates are piped back using `SendPort` to drive UI progress indicators. The UI thread remains completely unblocked.
-
-### 3.5 Write-Safe Serialization & Atomic DB Updates
-- **Reentrant Mutex Zone Queue (`AtomicWriter`)**: Prevents database race conditions and file locking. All write operations (add, edit, delete, reset) are enqueued into a sequential queue using Dart `Zones`. If a method is already within an atomic execution path, it safely inherits the context, avoiding lock contention.
-- **Integer Minor-Units Representation (`Money`)**: The codebase defines `typedef Money = int;` representing monetary amounts in minor units (e.g., paise/cents). This avoids floating-point rounding errors and keeps computations safe. Float values are parsed, validated up to 10 lakhs (₹10,00,000.00), and converted to minor units at the boundary.
+- **core/**: Design system tokens, architectural engines, layout constraints, app startup bootstraps.
+- **models/**: Type-safe entities (Expense, Budget, Reminder) with Hive TypeAdapters.
+- **navigation/**: Routing configuration and transition logic.
+- **provider/**: State managers connecting the UI to the Repositories.
+- **repositories/**: Abstraction layer over Hive database boxes.
+- **screens/**: Page-level Flutter widgets.
+- **services/**: Independent processing modules, background isolates, and alert throttling.
+- **themes/**: Material 3 light/dark mode properties.
+- **widgets/**: Granular components like forms, bottom sheets, buttons, and charts.
 
 ---
 
-## 4. UI/UX Design System & Material 3
+# 16. State Management Strategy
 
-Budgo implements a highly consistent, mobile-first design language centered around the Material 3 specification.
-
-### 4.1 Token-Based Sizing
-- **Spacing Grid (`lib/core/app_spacing.dart`)**: Every layout spacer, padding, and margin leverages a strict token set:
-  - `xs` (4), `sm` (8), `md` (12), `base` (16), `lg` (24), `xl` (32).
-- **Border Radius (`lib/core/app_radius.dart`)**:
-  - `sm` (8) for chips, `md` (12) for standard cards, `lg` (16) for prominent budget displays, `xl` (24) for bottom sheets, and `full` (999) for pills and badges.
-- **Motion Durations & Curves (`lib/core/app_curves.dart`, `lib/core/app_durations.dart`)**:
-  - Standardizes transitions with custom entry, exit, and spring curves. Page changes slide horizontally using `SharedAxisTransition`.
-
-### 4.2 Material Color System
-- Strict color usage rules are enforced: no raw hex values or default colors are written in screens. All components query the semantic palette of `Theme.of(context).colorScheme` (e.g., `primaryContainer`, `onSurfaceVariant`, `errorContainer`).
-- Visual states like over-budget, alerts, and confirmations adapt to light and dark modes natively.
-
-### 4.3 Custom Core Widgets (`lib/widgets/common/`)
-- `AppCard`: Standard container reflecting Material 3 tonal elevation and outline states.
-- `AppBudgetCard`: The screen's focal element, displaying current limits, progress bars, and alerts with micro-animations.
-- `AppTransactionTile`: Unified row displaying category icons, amount, and swipe-to-action handlers (swipe-left to delete, swipe-right to confirm draft).
-- `AppFilterChip`: Multi-state filter chip with smooth transitions.
-- `AppSettingsTile`: Reusable setting option presenting toggle, navigation, action, and info modes.
-- `AppBackGuard`: Safe navigation handler wrapping screens to prevent accidental closures and handle pop actions safely.
+**Chosen Solution:** `Provider` (`ChangeNotifier`)
+**Reason for Selection:** Offers high performance with a low learning curve, fully integrated with Flutter's widget lifecycle.
+**Benefits:** Decoupled business logic, easy mocking for testing, `ProxyProvider` enables seamless dependency injections between states.
+**Trade-offs:** Can lead to boilerplate `notifyListeners()` calls and lacks the strict event-based tracking of BLoC.
 
 ---
 
-## 5. Detailed Features
+# 17. Navigation Architecture
 
-1. **Robust Expense Ledger**:
-   - Add/edit/delete expenses with titles, amounts, customizable categories, and date pickers.
-   - Live search matching via prefix indexes.
-2. **Draft-Confirm Income Workflow**:
-   - Log income entries as draft items (`isConfirmed = false`). Confirming them updates the active budget snapshot, allowing users to plan against verified assets.
-3. **Wishlist/Future Expenses Planner**:
-   - Define future purchase targets with priority states (High priority features a left border indicator).
-   - Convert planned targets into actual expenses with custom amounts in one tap. The conversion maintains a linking key for rollback capabilities.
-4. **Smart Budgeting Engine**:
-   - Supports Overall, Weekly, and Monthly limits.
-   - Includes progress tracking and warning/over-limit thresholds.
-   - Incorporates `AlertThrottleService` to store fired alerts in SharedPreferences, preventing alert fatigue by limiting warnings to once per day.
-5. **Interactive Analytical Deck**:
-   - Dynamic charts powered by `fl_chart` (pie charts for category breakdowns, line charts for daily spending trends).
-   - Daily calendar spend heatmap showing visual intensities based on spending velocity.
-   - Local PDF & CSV report compiler with a live share bridge.
+**Navigation Structure:** Uses a centralized `AppShell` with a `BottomNavigationBar` to control primary tabs.
+**Routing Strategy:** Constant route strings mapped via `onGenerateRoute` in `MaterialApp`.
+**Transitions:** Unified `SharedAxisTransition` from the `animations` package for seamless, modern page changes.
+**Route Guards:** Utilizes custom `AppBackGuard` widgets wrapping major data entry screens to trap accidental hardware back button presses.
 
 ---
 
-## 6. Project Codebase Directory Structure
+# 18. UI and UX Design System
+
+- **Color System:** Semantic scaling via `Theme.of(context).colorScheme`. No raw hex codes allowed in views.
+- **Typography:** `GoogleFonts.roboto` driven by a unified `textTheme` extension.
+- **Component Design:** `AppCard`, `AppBudgetCard`, and `AppTransactionTile` follow Material 3 tonal elevation logic.
+- **Layout Principles:** Strict constraint tokens from `app_spacing.dart` (`xs: 4`, `sm: 8`, `md: 12`, `base: 16`).
+- **Accessibility:** High contrast ratios natively supported by the dynamic Material color themes.
+
+---
+
+# 19. Responsive Design Strategy
+
+**Mobile Layout:** Optimised for standard mobile viewports with flexible bottom sheets spanning edge-to-edge.
+**Adaptive Components:** Components utilize `LayoutBuilder` and flexible constraint bounds to stretch efficiently on larger mobile displays.
+**Scaling Strategy:** Text scales dynamically with OS-level user preferences.
+
+---
+
+# 20. Data Models
+
+### Expense (`Hive TypeId: 0`)
+- **Purpose:** Represents a completed transaction.
+- **Fields:** `id`, `amount`, `title`, `category`, `date`, `isExpense`.
+- **Validation Rules:** Amounts converted to and validated as minor-units (`int`) to prevent floating-point loss.
+
+### Reminder (`Hive TypeId: 4`)
+- **Purpose:** Represents a push notification schedule.
+- **Fields:** `id`, `title`, `scheduledAt`, `recurrenceType`, `isActive`.
+- **Relationships:** Spawns native `AlarmManager` intents.
+
+---
+
+# 21. Database Design
+
+- **Collections/Boxes:** Independent boxes for Expenses, Incomes, Budgets, Wishlists, and Reminders.
+- **Storage Mode:** In-memory mapped files for instantaneous $O(1)$ read cycles.
+- **Indexing:** Virtual inverted prefix indexing generated in memory upon startup to prevent locking disk queries.
+- **Migration:** Custom `HiveMigration` safety engine validating schema compatibility during `preInit`.
+
+---
+
+# 22. API Architecture
+
+**N/A** - Budgo operates entirely offline to guarantee maximum user data privacy.
+
+---
+
+# 23. Local Storage Strategy
+
+**Primary Engine:** `Hive` (High speed, synchronous synchronous NoSQL store). Used for all relational and primary data points.
+**Secondary Engine:** `SharedPreferences`. Used strictly for lightweight primitives: Theme selection, currency configuration, and throttle timestamps.
+**Reason:** Hive is significantly faster for structured models, while SharedPreferences is sufficient for unencrypted global toggles.
+
+---
+
+# 24. Data Flow Architecture
 
 ```text
-lib/
-├── core/                         # Design system tokens and architectural engines
-│   ├── app_constants.dart        # Category configurations and formatting helpers
-│   ├── app_curves.dart           # Motion curves (easeOut, elastic, etc.)
-│   ├── app_durations.dart        # Timing tokens (instant, fast, standard)
-│   ├── app_exception.dart        # Custom exceptions
-│   ├── app_initializer.dart      # Application bootstrap lifecycle manager
-│   ├── app_layout.dart           # Layout constraint presets
-│   ├── app_motion.dart           # Animation bindings
-│   ├── app_radius.dart           # Rounded corner tokens
-│   ├── app_readiness_notifier.dart# Startup readiness hook
-│   ├── app_spacing.dart          # Padding and margin tokens
-│   ├── app_state_box.dart        # Persistent global state properties
-│   ├── app_text_styles.dart      # Typography definitions
-│   ├── app_theme_extensions.dart # Theme configurations
-│   ├── atomic_writer.dart        # Reentrant mutex zone queue
-│   ├── currency_formatter.dart   # String currency formatter
-│   ├── hive_migration.dart       # DB recovery and schema migration
-│   ├── job_reconciler.dart       # Background job reconciliation
-│   ├── money.dart                # Integer minor-units formatting and representation
-│   ├── safe_preferences.dart     # Safe preferences storage wrapper
-│   └── top_k.dart                # Min-heap algorithm for top-K calculations
-├── models/                       # Type-safe persistent entities
-│   ├── view_models/              # View Model structures
-│   ├── budget.dart               # Budget model (Hive TypeId: 3)
-│   ├── expense.dart              # Expense model (Hive TypeId: 0)
-│   ├── filter_criteria.dart      # View filtering state representation
-│   ├── future_expense.dart       # Wishlist item model (Hive TypeId: 2)
-│   ├── income.dart               # Income model (Hive TypeId: 1)
-│   ├── job_record.dart           # Durable task logs (Hive TypeId: 5)
-│   ├── reminder.dart             # Push notifications model (Hive TypeId: 4)
-│   ├── reports_view_model.dart   # Pre-calculated reports payload
-│   ├── timeline_group.dart       # Grouped transactions by date
-│   └── transaction_entry.dart    # Transaction representation helper
-├── navigation/                   # Routing and transition systems
-│   ├── app_page_route.dart       # SharedAxisTransition page wrapper
-│   └── app_routes.dart           # Navigation endpoint constants
-├── provider/                     # ChangeNotifier state engines
-│   ├── activity_provider.dart    # Activity logs, pagination, and filter state
-│   ├── app_navigation_provider.dart# Navigation index controller
-│   ├── app_preferences_provider.dart# Persisted settings controller
-│   ├── budget_provider.dart      # Budget state manager
-│   ├── dashboard_provider.dart   # Dashboard metrics state compiler
-│   ├── expenses_provider.dart    # Core expenses state, indexes, isolates, paging
-│   ├── finance_boxes.dart        # Hive database registry
-│   ├── future_expenses_provider.dart# Wishlist conversions controller
-│   ├── income_provider.dart      # Income draft controller
-│   ├── reminder_provider.dart    # Push notifications scheduling state
-│   ├── reports_provider.dart     # Chart ranges data compiler
-│   └── theme_provider.dart       # User themes selection controller
-├── repositories/                 # Storage abstraction modules
-│   ├── budget_repository.dart
-│   ├── expense_repository.dart
-│   ├── future_expense_repository.dart
-│   ├── income_repository.dart
-│   └── reminder_repository.dart
-├── screens/                      # Navigation screens
-│   ├── activity_screen.dart      # Ledger with custom filters
-│   ├── app_shell.dart            # M3 BottomNavigationBar scaffolding
-│   ├── future_expenses_screen.dart# Wishlist management screen
-│   ├── home_screen.dart          # Main dashboard, budget card, quick action trigger
-│   ├── income_screen.dart        # Income drafts screen
-│   ├── reports_screen.dart       # Range metrics, charts, exports, heatmap
-│   ├── settings_screen.dart      # Preferences, isolates triggers, version indicators
-│   └── splash_screen.dart        # Startup animation screen
-├── services/                     # Background logic providers
-│   ├── activity_service.dart     # Ledger sorter and timeline builder
-│   ├── alert_throttle_service.dart# Daily notification throttling
-│   ├── dashboard_service.dart    # KPI data composer
-│   ├── insight_engine_service.dart# Metric to text generator
-│   ├── notification_service.dart # Local notifications wrapper
-│   ├── report_export_service.dart# Isolated PDF/CSV exporter
-│   ├── reports_data_service.dart # Range filter queries
-│   └── storage_info_service.dart # Asynchronous disk space inspector
-├── themes/                       # Visual style layers
-│   ├── theme.dart                # Material 3 light/dark palette definitions
-│   └── util.dart                 # Typography loading helpers
-├── widgets/                      # Shared reusable UI elements
-│   ├── charts/                   # fl_chart implementations (Heatmap, Line, Pie, Bar)
-│   ├── common/                   # Design system widgets (AppCard, AppBudgetCard, etc.)
-│   ├── dashboard/                # Dashboard subcomponents
-│   ├── forms/                    # Bottom sheet forms
-│   ├── home/                     # Home subcomponents
-│   └── ...                       # Alerts, back-guards, and empty placeholders
-└── main.dart                     # Setup entry point
+User Interface
+↓ (Action/Event)
+State Management (ChangeNotifier)
+↓ (Method Call)
+Repository (Interface implementation)
+↓ (Atomic Write)
+Local Storage (Hive DB)
+↓ (Listeners trigger)
+State Management (Cache update & notifyListeners)
+↓ (Rebuild)
+User Interface
 ```
 
 ---
 
-## 7. Technology Stack & Dependencies
+# 25. Third-Party Dependencies
 
-Budgo uses stable and performant packages to handle databases, charts, documents, and notifications:
-
-- **State Management**: `provider` (dependency injection and reactive UI binding)
-- **Local Persistence**: `hive` & `hive_flutter` (high-performance NoSQL local key-value database)
-- **Charts**: `fl_chart` (customizable line, pie, and bar charts)
-- **Document Compiling**: `csv` & `pdf` (off-loaded to Isolates for PDF/CSV generation)
-- **Native Bridges**:
-  - `path_provider` (file paths)
-  - `printing` & `share_plus` (PDF print/share dialogs)
-  - `flutter_local_notifications` (push reminder alerts)
-  - `shared_preferences` (persisted settings)
-- **Typography & Localization**:
-  - `google_fonts` (Roboto styling)
-  - `intl` (date format parsing and Indian Currency notation `en_IN`)
+- **`provider`**: Dependency injection and state sharing.
+- **`hive` & `hive_flutter`**: Blazing fast NoSQL offline database.
+- **`fl_chart`**: Renders highly customizable analytical charts.
+- **`flutter_local_notifications`**: Powers the underlying OS-level background intent scheduler for reminders.
+- **`pdf` & `printing`**: Used internally by Isolate threads to generate and print report documents.
+- **`intl`**: Currency formatting and localization rules.
 
 ---
 
-## 8. Local Setup & Verification
+# 26. External Integrations
 
-Follow these steps to run and test Budgo locally:
+- N/A (Fully Offline App). Native integrations include local file sharing bridging (via `share_plus`).
 
-### 8.1 Prerequisites
-- **Flutter SDK**: `^3.x.x` (with Dart SDK `^3.8.1` or higher)
-- **Android Studio / Xcode** (for target emulators/simulators)
+---
 
-### 8.2 Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/2005-rafi/expense-tracker-flutter.git
-   cd expense-tracker-flutter
-   ```
-2. Fetch package dependencies:
-   ```bash
-   flutter pub get
-   ```
-3. Run code generation for Hive TypeAdapters (if required):
-   ```bash
-   flutter pub run build_runner build --delete-conflicting-outputs
-   ```
+# 27. Security Architecture
 
-### 8.3 Running the Application
-- Build and run the app in debug mode on an active device:
-   ```bash
-   flutter run
-   ```
+- **Offline Isolation:** Data never leaves the physical device. Zero network vectors for data exfiltration.
+- **File System Protection:** Hive boxes are stored in the application's secure documents directory, impenetrable to other apps on unmodified OS environments.
+- **Input Validation:** Numeric string parsers validate length limits (e.g. ₹10,00,000 max) before saving binary states.
 
-### 8.4 Verification & Analysis
-- Run the Flutter analyzer to confirm code styling and consistency:
-   ```bash
-   flutter analyze
-   ```
-- Run the test suite:
-   ```bash
-   flutter test
-   ```
+---
+
+# 28. Error Handling Strategy
+
+- **Runtime Exceptions:** Wrapped in isolated `try/catch` blocks.
+- **Concurrency Errors:** Eradicated via the custom `AtomicWriter` reentrant mutex zone queue preventing file locks.
+- **Background Isolates:** If an isolated PDF generation fails, a distinct error payload returns through the `SendPort`, displaying a clean SnackBar to the user.
+- **Logging Strategy:** Internal `JobRecord` persistent tracking saves failed actions for subsequent startup reconciliation.
+
+---
+
+# 29. Performance Optimization
+
+- **Custom Sliding Viewport:** Only the nearest 100 widgets are inflated into memory during deep scroll sessions via `advanceWindow()`.
+- **Top-K Min-Heap:** Limits database sorting latency by isolating top expenses in $O(N \log K)$ runtime.
+- **Isolate Offloading:** Heavy serialization (PDF/CSV) runs on separate OS threads to prevent 60FPS UI jank.
+- **Prefix Search Indexes:** Pre-calculates search queries preventing full-database regex matching.
+
+---
+
+# 30. Offline Functionality
+
+Budgo is a fundamentally offline platform.
+- **Data Caching:** Everything is stored durably via Hive.
+- **Synchronization:** N/A natively, preventing sync conflict edge cases.
+
+---
+
+# 31. Testing Strategy
+
+- **Unit Testing:** Validates algorithms, state transitions, reminder schedulers, and minor-unit monetary math.
+- **Widget Testing:** Validates specific `ChangeNotifier` triggers and layout guards (`AppBackGuard`).
+- **Command:** Validated via `flutter test`. Full green suite confirming zero regressions across the `Provider` layer.
+
+---
+
+# 32. Scalability Considerations
+
+- **Modular Design:** Layers are fully isolated. Moving from Hive to SQLite or Realm would only require rewriting the Repository interfaces.
+- **Feature Expansion:** Using Provider proxies allows infinite feature depth without polluting the root state graph.
+
+---
+
+# 33. Key Learnings
+
+- **Flutter Architecture:** Properly isolating presentation from domain logic drastically reduces bug velocity.
+- **Isolates:** Background processing is vital for offline apps handling thousands of rows; UI stutters are completely preventable.
+- **Native Android Binding:** Background intents require careful manifest configuration (like `ScheduledNotificationReceiver`) and strict memory initialization protocols when returning to Dart.
+
+---
+
+# 34. Future Roadmap
+
+**Short-Term Goals:** Expand the dynamic currency system with automatic locale detection.
+**Mid-Term Goals:** Build an automated encrypted Google Drive / iCloud backup bridge.
+**Long-Term Goals:** Expand the ecosystem with a native MacOS / Windows desktop client sharing the same offline Hive structure.
+
+---
+
+# 35. Setup Instructions
+
+The latest application binaries are available in the GitHub Releases section. 
+
+### Local Installation
+1. Clone the repository: `git clone https://github.com/2005-rafi/budgo.git`
+2. Navigate to directory: `cd expense`
+3. Fetch dependencies: `flutter pub get`
+4. Run code generation (optional): `flutter pub run build_runner build --delete-conflicting-outputs`
+5. Boot application: `flutter run`
+
+---
+
+# 36. Configuration Guide
+
+- **Environment Variables:** None required.
+- **Firebase Setup:** N/A.
+
+---
+
+# 37. Build Instructions
+
+**Android APK:** `flutter build apk --release`
+**Android App Bundle (AAB):** `flutter build appbundle --release --obfuscate --split-debug-info=build/debug-info`
+**iOS Build:** `flutter build ipa --release`
+
+---
+
+# 38. Deployment Guide
+
+- Built using GitHub actions.
+- Semantic Versioning Strategy dictates tags (`v1.0.0`).
+- Released directly to the GitHub releases page as `app-release.apk`.
+
+---
+
+# 39. Contributing Guidelines
+
+- **Branch Strategy:** Fork and create feature branches (`feature/add-dark-mode`).
+- **Commit Standards:** Prefer conventional commits (e.g. `feat: xyz`, `fix: abc`).
+- **Pull Request Workflow:** PRs must pass `flutter analyze` and `flutter test`.
+
+---
+
+# 40. License
+
+Standard open-source usage rights. (See `LICENSE` file if included).
+
+---
+
+# 41. Author Information
+
+- **Name:** Rafi
+- **GitHub:** [2005-rafi](https://github.com/2005-rafi)
+
+---
+
+# 42. Acknowledgements
+
+- The Flutter & Dart core team.
+- Maintainers of `hive`, `provider`, and `fl_chart`.
+- Material 3 Design System documentation.
+
+---
