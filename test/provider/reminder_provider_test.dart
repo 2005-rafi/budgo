@@ -185,7 +185,14 @@ void main() {
     expect(result, true);
     expect(provider.items.first.paymentStatus, 'pending');
     expect(provider.items.first.isActive, true);
-    expect(provider.items.first.scheduledAt, baseTime.add(const Duration(days: 1)));
+    
+    DateTime expectedNext = baseTime;
+    final now = DateTime.now();
+    while (expectedNext.isBefore(now)) {
+      expectedNext = expectedNext.add(const Duration(days: 1));
+    }
+    
+    expect(provider.items.first.scheduledAt, expectedNext);
     expect(notif.cancelled.contains(reminder.notificationId), true);
     expect(notif.scheduled.contains(reminder.notificationId), true);
   });

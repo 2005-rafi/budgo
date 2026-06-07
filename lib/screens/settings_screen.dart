@@ -259,6 +259,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
+                  AppSettingsTile(
+                    type: AppSettingsTileType.segmented,
+                    title: 'Currency',
+                    segmentedWidget: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: '₹', label: Text('₹')),
+                        ButtonSegment(value: '\$', label: Text('\$')),
+                        ButtonSegment(value: '€', label: Text('€')),
+                        ButtonSegment(value: '¥', label: Text('¥')),
+                      ],
+                      selected: {prefsProvider.currencySymbol},
+                      onSelectionChanged: (Set<String> newSelection) {
+                        prefsProvider.setCurrencySymbol(newSelection.first);
+                      },
+                      showSelectedIcon: false,
+                      style: SegmentedButton.styleFrom(
+                        visualDensity: VisualDensity.comfortable,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
+                  ),
                   const Divider(height: 1, indent: AppSpacing.base),
                   AppSettingsTile(
                     type: AppSettingsTileType.toggle,
@@ -333,6 +354,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     leadingIcon: Icons.delete_forever_outlined,
                     destructive: true,
                     onTap: _confirmReset,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
+          // Group 4 — Information
+          const AppSectionHeader(label: 'Information'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.base),
+            child: AppCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  AppSettingsTile(
+                    type: AppSettingsTileType.navigation,
+                    title: 'About & Legal',
+                    leadingIcon: Icons.info_outline,
+                    onTap: () {
+                      Navigator.pushNamed(context, '/about');
+                    },
                   ),
                 ],
               ),

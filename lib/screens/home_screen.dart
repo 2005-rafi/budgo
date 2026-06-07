@@ -12,6 +12,7 @@ import 'package:expense/provider/future_expenses_provider.dart';
 import 'package:expense/provider/reminder_provider.dart';
 import 'package:expense/models/transaction_entry.dart';
 import 'package:expense/models/view_models/dashboard_view_model.dart';
+import 'package:expense/core/money.dart';
 
 import 'package:expense/widgets/common/app_budget_card.dart';
 import 'package:expense/widgets/common/app_section_header.dart';
@@ -282,7 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 const SizedBox(height: AppSpacing.sm),
                                 ...overdue.map((reminder) {
                                   final amountText = reminder.amount != null
-                                      ? ' • ₹ ${(reminder.amount! / 100.0).toStringAsFixed(2)}'
+                                      ? ' • ${MoneyFormatter.symbol} ${(reminder.amount! / 100.0).toStringAsFixed(2)}'
                                       : '';
                                   return Card(
                                     elevation: 0,

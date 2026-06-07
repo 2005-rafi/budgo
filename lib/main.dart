@@ -15,6 +15,7 @@ import 'package:expense/screens/app_shell.dart';
 import 'package:expense/screens/reports_screen.dart';
 import 'package:expense/screens/income_screen.dart';
 import 'package:expense/screens/future_expenses_screen.dart';
+import 'package:expense/screens/about_screen.dart';
 
 // Import new providers and services
 import 'package:expense/provider/app_navigation_provider.dart';
@@ -238,6 +239,9 @@ class MyApp extends StatelessWidget {
                 break;
               case AppRoutes.futureExpenses:
                 builder = const FutureExpensesScreen();
+                break;
+              case AppRoutes.about:
+                builder = const AboutScreen();
                 break;
               default:
                 builder = const AppShell();

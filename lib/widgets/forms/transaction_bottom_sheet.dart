@@ -12,6 +12,8 @@ import 'package:expense/provider/expenses_provider.dart';
 import 'package:expense/provider/income_provider.dart';
 import 'package:expense/widgets/snackbar_feedback.dart';
 import 'package:expense/widgets/common/app_filter_chip.dart';
+import 'package:expense/core/money.dart';
+import 'package:expense/core/app_constants.dart';
 
 enum TransactionMode { expense, income }
 
@@ -122,8 +124,8 @@ class _TransactionBottomSheetState extends State<TransactionBottomSheet> {
         final parsed = double.tryParse(value);
         if (parsed == null || parsed <= 0) {
           _amountError = 'Enter a valid positive number';
-        } else if (parsed > 1000000) {
-          _amountError = 'Amount cannot exceed ₹10,00,000';
+        } else if ((parsed * 100).round() > AppConstants.kMaxAmount) {
+          _amountError = 'Amount cannot exceed ${MoneyFormatter.symbol}10,00,000';
         } else {
           final parts = value.trim().split('.');
           if (parts.length > 1 && parts[1].length > 2) {
@@ -309,8 +311,8 @@ class _TransactionBottomSheetState extends State<TransactionBottomSheet> {
                     fontWeight: FontWeight.bold,
                   ),
                   decoration: InputDecoration(
-                    labelText: 'Amount (₹)',
-                    prefixIcon: const Icon(Icons.currency_rupee),
+                    labelText: 'Amount (${MoneyFormatter.symbol})',
+                    prefixIcon: const Icon(Icons.attach_money),
                     border: const OutlineInputBorder(),
                     errorText: _amountError,
                   ),

@@ -12,6 +12,7 @@ class AppConstants {
   static const String kThemeModeKey = 'isDarkMode';
   static const String kBudgetModeKey = 'isBudgetModeEnabled';
   static const String kThemeContrastKey = 'themeContrast';
+  static const String kCurrencySymbolKey = 'currencySymbol';
 
   // Category Names
   static const List<String> kDefaultCategories = [

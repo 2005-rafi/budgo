@@ -13,8 +13,10 @@ import 'package:expense/provider/expenses_provider.dart';
 import 'package:expense/provider/income_provider.dart';
 import 'package:expense/provider/future_expenses_provider.dart';
 import 'package:expense/widgets/snackbar_feedback.dart';
+import 'package:expense/core/money.dart';
 import 'package:expense/widgets/forms/transaction_bottom_sheet.dart';
 import 'package:expense/widgets/forms/wishlist_item_sheet.dart';
+import 'package:expense/core/app_constants.dart';
 
 class TransactionDetailSheet extends StatefulWidget {
   final TransactionEntry entry;
@@ -227,8 +229,9 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
         SnackbarFeedback.showError(context, 'Please enter a valid amount');
         return;
       }
-      if (amountRupees > 1000000) {
-        SnackbarFeedback.showError(context, 'Amount cannot exceed ₹10,00,000');
+      final amount = (amountRupees * 100).round();
+      if (amount > AppConstants.kMaxAmount) {
+        SnackbarFeedback.showError(context, 'Amount cannot exceed ${MoneyFormatter.symbol}10,00,000');
         return;
       }
       final parts = amountText.split('.');
@@ -236,7 +239,6 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
         SnackbarFeedback.showError(context, 'Up to 2 decimal places allowed');
         return;
       }
-      final amount = (amountRupees * 100).round();
       setState(() => _isActionInProgress = true);
       try {
         final provider = context.read<FutureExpensesProvider>();
@@ -401,10 +403,10 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                 decimal: true,
               ),
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Actual Paid Amount (₹)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.currency_rupee),
+              decoration: InputDecoration(
+                labelText: 'Actual Paid Amount (${MoneyFormatter.symbol})',
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.attach_money),
               ),
             ),
             const SizedBox(height: AppSpacing.md),

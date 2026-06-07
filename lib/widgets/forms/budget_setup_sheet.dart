@@ -6,6 +6,8 @@ import 'package:expense/core/app_text_styles.dart';
 import 'package:expense/core/app_theme_extensions.dart';
 import 'package:expense/provider/budget_provider.dart';
 import 'package:expense/widgets/snackbar_feedback.dart';
+import 'package:expense/core/money.dart';
+import 'package:expense/core/app_constants.dart';
 
 class BudgetSetupSheet extends StatefulWidget {
   const BudgetSetupSheet({super.key});
@@ -248,7 +250,7 @@ class _BudgetSetupSheetState extends State<BudgetSetupSheet> {
                   ).copyWith(fontWeight: FontWeight.bold),
                   decoration: InputDecoration(
                     labelText: 'Limit Amount',
-                    prefixText: '₹ ',
+                    prefixText: '${MoneyFormatter.symbol} ',
                     prefixStyle: AppTextStyles.headline(
                       context,
                     ).copyWith(fontWeight: FontWeight.bold),
@@ -266,8 +268,8 @@ class _BudgetSetupSheetState extends State<BudgetSetupSheet> {
                     if (val == null || val <= 0) {
                       return 'Enter a valid number greater than 0';
                     }
-                    if (val > 1000000) {
-                      return 'Amount cannot exceed ₹10,00,000';
+                    if (val > AppConstants.kMaxAmount) {
+                      return 'Amount cannot exceed ${MoneyFormatter.symbol}10,00,000';
                     }
                     final parts = value.trim().split('.');
                     if (parts.length > 1 && parts[1].length > 2) {

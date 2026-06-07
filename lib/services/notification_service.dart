@@ -172,61 +172,21 @@ class NotificationService {
         iOS: iosDetails,
       );
 
-      // Determine the matchComponents for repeating scheduled notifications
-      DateTimeComponents? matchComponents;
-      final recRuleType = recurrenceRule?.type ?? _recurrenceTypeFromString(recurrence);
-      if (recRuleType == RecurrenceType.daily) {
-        matchComponents = DateTimeComponents.time;
-      } else if (recRuleType == RecurrenceType.weekly) {
-        matchComponents = DateTimeComponents.dayOfWeekAndTime;
-      } else if (recRuleType == RecurrenceType.monthly) {
-        matchComponents = DateTimeComponents.dayOfMonthAndTime;
-      }
-
-      if (matchComponents == null) {
-        await _notificationsPlugin.zonedSchedule(
-          id,
-          title,
-          body,
-          scheduledDateTime,
-          notificationDetails,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
-          payload: payload,
-        );
-      } else {
-        await _notificationsPlugin.zonedSchedule(
-          id,
-          title,
-          body,
-          scheduledDateTime,
-          notificationDetails,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
-          matchDateTimeComponents: matchComponents,
-          payload: payload,
-        );
-      }
+      await _notificationsPlugin.zonedSchedule(
+        id,
+        title,
+        body,
+        scheduledDateTime,
+        notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: payload,
+      );
       return true;
     } catch (e) {
       debugPrint('Error scheduling notification: $e');
       return false;
-    }
-  }
-
-
-  RecurrenceType _recurrenceTypeFromString(String recurrence) {
-    switch (recurrence) {
-      case 'daily':
-        return RecurrenceType.daily;
-      case 'weekly':
-        return RecurrenceType.weekly;
-      case 'monthly':
-        return RecurrenceType.monthly;
-      default:
-        return RecurrenceType.none;
     }
   }
 
@@ -259,6 +219,7 @@ void notificationTapBackground(NotificationResponse response) {
 Future<void> _handleBackgroundMarkPaid(String reminderId) async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
+    await NotificationService().initialize();
     if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(ReminderAdapter());
     }
@@ -310,6 +271,7 @@ Future<void> _handleBackgroundMarkPaid(String reminderId) async {
 Future<void> _handleBackgroundRemindLater(String reminderId) async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
+    await NotificationService().initialize();
     if (!Hive.isAdapterRegistered(4)) {
       Hive.registerAdapter(ReminderAdapter());
     }

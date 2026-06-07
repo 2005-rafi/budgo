@@ -10,6 +10,8 @@ import 'package:expense/models/reminder.dart';
 import 'package:expense/provider/reminder_provider.dart';
 import 'package:expense/widgets/snackbar_feedback.dart';
 import 'package:expense/widgets/common/app_filter_chip.dart';
+import 'package:expense/core/money.dart';
+import 'package:expense/core/app_constants.dart';
 
 class ReminderBottomSheet extends StatefulWidget {
   final Reminder? existingReminder;
@@ -199,8 +201,8 @@ class _ReminderBottomSheetState extends State<ReminderBottomSheet> {
         SnackbarFeedback.showError(context, 'Please enter a valid positive amount');
         return;
       }
-      if (amtDouble > 1000000) {
-        SnackbarFeedback.showError(context, 'Amount cannot exceed ₹10,00,000');
+      if (amtDouble > AppConstants.kMaxAmount) {
+        SnackbarFeedback.showError(context, 'Amount cannot exceed ${MoneyFormatter.symbol}10,00,000');
         return;
       }
       final parts = amountText.split('.');
@@ -379,7 +381,7 @@ class _ReminderBottomSheetState extends State<ReminderBottomSheet> {
                             decoration: InputDecoration(
                               labelText: 'Amount',
                               hintText: '0.00',
-                              prefixText: '₹ ',
+                              prefixText: '${MoneyFormatter.symbol} ',
                               prefixStyle: TextStyle(
                                 color: colorScheme.onSurface,
                                 fontWeight: FontWeight.bold,

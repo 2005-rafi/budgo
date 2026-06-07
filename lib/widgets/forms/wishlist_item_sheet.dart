@@ -10,6 +10,8 @@ import 'package:expense/provider/future_expenses_provider.dart';
 import 'package:expense/widgets/inline_validation_message.dart';
 import 'package:expense/widgets/snackbar_feedback.dart';
 import 'package:expense/widgets/common/app_filter_chip.dart';
+import 'package:expense/core/money.dart';
+import 'package:expense/core/app_constants.dart';
 
 class WishlistItemSheet extends StatefulWidget {
   final FutureExpense? existingItem;
@@ -130,8 +132,8 @@ class _WishlistItemSheetState extends State<WishlistItemSheet> {
         SnackbarFeedback.showError(context, 'Please enter a valid positive amount');
         return;
       }
-      if (costRupees > 1000000) {
-        SnackbarFeedback.showError(context, 'Amount cannot exceed ₹10,00,000');
+      if (costRupees > AppConstants.kMaxAmount) {
+        SnackbarFeedback.showError(context, 'Amount cannot exceed ${MoneyFormatter.symbol}10,00,000');
         return;
       }
       final parts = costText.split('.');
@@ -265,9 +267,10 @@ class _WishlistItemSheetState extends State<WishlistItemSheet> {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Estimated Cost (₹, optional)',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: 'Estimated Cost (${MoneyFormatter.symbol}, optional)',
+                        prefixIcon: const Icon(Icons.attach_money),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
