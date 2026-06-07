@@ -13,14 +13,18 @@ class AboutScreen extends StatelessWidget {
     final Uri url = Uri.parse(urlString);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not launch $urlString')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not launch $urlString')));
       }
     }
   }
 
-  void _showPolicyDialog(BuildContext context, String title, String markdownData) {
+  void _showPolicyDialog(
+    BuildContext context,
+    String title,
+    String markdownData,
+  ) {
     showDialog(
       context: context,
       builder: (context) {
@@ -67,7 +71,10 @@ class AboutScreen extends StatelessWidget {
         scrolledUnderElevation: 2,
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.base),
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.md,
+          horizontal: AppSpacing.base,
+        ),
         children: [
           // App Header Card
           AppCard(
@@ -95,7 +102,10 @@ class AboutScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(16),
@@ -168,21 +178,30 @@ class AboutScreen extends StatelessWidget {
                   type: AppSettingsTileType.navigation,
                   title: 'Email Support',
                   leadingIcon: Icons.support_agent_outlined,
-                  onTap: () => _launchUrl(context, 'mailto:2005.mohammedrafi.h@gmail.com?subject=Budgo%20Support'),
+                  onTap: () => _launchUrl(
+                    context,
+                    'mailto:2005.mohammedrafi.h@gmail.com?subject=Budgo%20Support',
+                  ),
                 ),
                 const Divider(height: 1, indent: AppSpacing.base),
                 AppSettingsTile(
                   type: AppSettingsTileType.navigation,
                   title: 'Report Issue',
                   leadingIcon: Icons.bug_report_outlined,
-                  onTap: () => _launchUrl(context, 'https://github.com/2005-rafi/budgo/issues'),
+                  onTap: () => _launchUrl(
+                    context,
+                    'https://github.com/2005-rafi/budgo/issues',
+                  ),
                 ),
                 const Divider(height: 1, indent: AppSpacing.base),
                 AppSettingsTile(
                   type: AppSettingsTileType.navigation,
                   title: 'Feature Request',
                   leadingIcon: Icons.lightbulb_outline,
-                  onTap: () => _launchUrl(context, 'https://github.com/2005-rafi/budgo/issues'),
+                  onTap: () => _launchUrl(
+                    context,
+                    'https://github.com/2005-rafi/budgo/issues',
+                  ),
                 ),
               ],
             ),
@@ -198,14 +217,18 @@ class AboutScreen extends StatelessWidget {
                   type: AppSettingsTileType.navigation,
                   title: 'GitHub Repository',
                   leadingIcon: Icons.code,
-                  onTap: () => _launchUrl(context, 'https://github.com/2005-rafi/budgo'),
+                  onTap: () =>
+                      _launchUrl(context, 'https://github.com/2005-rafi/budgo'),
                 ),
                 const Divider(height: 1, indent: AppSpacing.base),
                 AppSettingsTile(
                   type: AppSettingsTileType.navigation,
                   title: 'Release Notes',
                   leadingIcon: Icons.article_outlined,
-                  onTap: () => _launchUrl(context, 'https://github.com/2005-rafi/budgo/releases'),
+                  onTap: () => _launchUrl(
+                    context,
+                    'https://github.com/2005-rafi/budgo/releases',
+                  ),
                 ),
               ],
             ),
@@ -221,21 +244,33 @@ class AboutScreen extends StatelessWidget {
                   type: AppSettingsTileType.navigation,
                   title: 'Privacy Policy',
                   leadingIcon: Icons.privacy_tip_outlined,
-                  onTap: () => _showPolicyDialog(context, 'Privacy Policy', LegalPolicies.privacyPolicy),
+                  onTap: () => _showPolicyDialog(
+                    context,
+                    'Privacy Policy',
+                    LegalPolicies.privacyPolicy,
+                  ),
                 ),
                 const Divider(height: 1, indent: AppSpacing.base),
                 AppSettingsTile(
                   type: AppSettingsTileType.navigation,
                   title: 'Terms of Use',
                   leadingIcon: Icons.description_outlined,
-                  onTap: () => _showPolicyDialog(context, 'Terms of Use', LegalPolicies.termsOfUse),
+                  onTap: () => _showPolicyDialog(
+                    context,
+                    'Terms of Use',
+                    LegalPolicies.termsOfUse,
+                  ),
                 ),
                 const Divider(height: 1, indent: AppSpacing.base),
                 AppSettingsTile(
                   type: AppSettingsTileType.navigation,
                   title: 'End User License Agreement',
                   leadingIcon: Icons.assignment_outlined,
-                  onTap: () => _showPolicyDialog(context, 'End User License Agreement', LegalPolicies.eula),
+                  onTap: () => _showPolicyDialog(
+                    context,
+                    'End User License Agreement',
+                    LegalPolicies.eula,
+                  ),
                 ),
               ],
             ),
