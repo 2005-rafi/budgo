@@ -1,22 +1,20 @@
+import 'package:expense/core/errors/app_error_translator.dart';
+import 'package:expense/core/registries/category_registry.dart';
+import 'package:expense/core/utils/input_validators.dart';
+import 'package:expense/design/budgo_ui.dart';
 import 'package:expense/models/future_expense.dart';
-import 'package:expense/core/atomic_writer.dart';
+import 'package:expense/core/storage/atomic_writer.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:expense/models/transaction_entry.dart';
-import 'package:expense/core/app_spacing.dart';
-import 'package:expense/core/app_radius.dart';
-import 'package:expense/core/app_text_styles.dart';
-import 'package:expense/core/app_theme_extensions.dart';
-import 'package:expense/core/currency_formatter.dart';
-import 'package:expense/provider/expenses_provider.dart';
-import 'package:expense/provider/income_provider.dart';
-import 'package:expense/provider/future_expenses_provider.dart';
-import 'package:expense/widgets/snackbar_feedback.dart';
-import 'package:expense/core/money.dart';
-import 'package:expense/widgets/forms/transaction_bottom_sheet.dart';
-import 'package:expense/widgets/forms/wishlist_item_sheet.dart';
-import 'package:expense/core/app_constants.dart';
+import 'package:expense/core/currency/currency_formatter.dart';
+import 'package:expense/providers/expenses_provider.dart';
+import 'package:expense/providers/income_provider.dart';
+import 'package:expense/providers/future_expenses_provider.dart';
+import 'package:expense/providers/transfer_provider.dart';
+import 'package:expense/widgets/sheets/transaction_bottom_sheet.dart';
+import 'package:expense/widgets/sheets/wishlist_item_sheet.dart';
 
 class TransactionDetailSheet extends StatefulWidget {
   final TransactionEntry entry;
@@ -56,32 +54,16 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
     super.dispose();
   }
 
-  IconData _categoryIcon(String category) {
-    switch (category.toLowerCase()) {
-      case 'food':
-        return Icons.restaurant_outlined;
-      case 'travel':
-        return Icons.directions_car_outlined;
-      case 'bills':
-        return Icons.receipt_outlined;
-      case 'shopping':
-        return Icons.shopping_bag_outlined;
-      case 'entertainment':
-        return Icons.movie_outlined;
-      case 'health':
-        return Icons.medical_services_outlined;
-      case 'education':
-        return Icons.school_outlined;
-      case 'income':
-        return Icons.arrow_downward_outlined;
-      default:
-        return Icons.attach_money_outlined;
-    }
-  }
-
   void _edit() {
-    Navigator.pop(context); // close detail sheet
     final entry = widget.entry;
+    if (entry is TransferEntry) {
+      SnackbarFeedback.showInfo(
+        context,
+        'Transfers are permanent ledger entries. Use "Reverse" to roll back.',
+      );
+      return;
+    }
+    Navigator.pop(context); // close detail sheet
     if (entry is ExpenseEntry) {
       TransactionBottomSheet.show(
         context,
@@ -111,16 +93,19 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
           .getLinkedFutureExpense(entry.rawExpense.key as int);
     }
 
+    final isTransfer = entry is TransferEntry;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Transaction?'),
+        title: Text(isTransfer ? 'Reverse Transfer?' : 'Delete Transaction?'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Are you sure you want to permanently delete this record?',
+            Text(
+              isTransfer
+                  ? 'Are you sure you want to reverse this transfer? Funds will be deducted from the receiving account and credited back to the source.'
+                  : 'Are you sure you want to permanently delete this record?',
             ),
             if (linkedFuture != null) ...[
               const SizedBox(height: AppSpacing.md),
@@ -147,14 +132,19 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
           ],
         ),
         actions: [
-          TextButton(
+          BudgoButton(
+            label: 'Cancel',
+            variant: BudgoButtonVariant.text,
+            expanded: false,
+            height: 42,
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
           ),
-          TextButton(
+          BudgoButton(
+            label: isTransfer ? 'Reverse' : 'Delete',
+            variant: BudgoButtonVariant.destructive,
+            expanded: false,
+            height: 42,
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: colorScheme.error),
-            child: const Text('Delete'),
           ),
         ],
       ),
@@ -180,14 +170,29 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
         } else if (entry is PlannedEntry) {
           final provider = context.read<FutureExpensesProvider>();
           await provider.deleteFutureExpense(entry.rawFuture);
+        } else if (entry is TransferEntry) {
+          final provider = context.read<TransferProvider>();
+          await provider.reverseTransfer(
+            entry.id,
+            reason: 'Reversed by user from detail sheet',
+          );
         }
         if (mounted) {
           Navigator.pop(context);
-          SnackbarFeedback.showSuccess(context, 'Transaction deleted');
+          SnackbarFeedback.showSuccess(
+            context,
+            isTransfer ? 'Transfer reversed successfully' : 'Transaction deleted',
+          );
         }
       } catch (e) {
         if (mounted) {
-          SnackbarFeedback.showError(context, 'Deletion failed: $e');
+          SnackbarFeedback.showError(
+            context,
+            e,
+            operation: isTransfer
+                ? FeedbackOperation.selfTransfer
+                : FeedbackOperation.deleteTransaction,
+          );
         }
       } finally {
         if (mounted) {
@@ -210,7 +215,11 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
         }
       } catch (e) {
         if (mounted) {
-          SnackbarFeedback.showError(context, 'Failed to confirm income: $e');
+          SnackbarFeedback.showError(
+            context,
+            e,
+            operation: FeedbackOperation.confirmIncome,
+          );
         }
       } finally {
         if (mounted) {
@@ -223,22 +232,15 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
   void _purchasePlanned() async {
     final entry = widget.entry;
     if (entry is PlannedEntry) {
-      final amountText = _purchaseAmountController.text.trim();
-      final amountRupees = double.tryParse(amountText);
-      if (amountRupees == null || amountRupees <= 0) {
-        SnackbarFeedback.showError(context, 'Please enter a valid amount');
+      final validation = InputValidators.validateAmount(
+        _purchaseAmountController.text,
+        fieldLabel: 'Paid amount',
+      );
+      if (!validation.isValid) {
+        SnackbarFeedback.showError(context, validation.errorMessage!);
         return;
       }
-      final amount = (amountRupees * 100).round();
-      if (amount > AppConstants.kMaxAmount) {
-        SnackbarFeedback.showError(context, 'Amount cannot exceed ${MoneyFormatter.symbol}10,00,000');
-        return;
-      }
-      final parts = amountText.split('.');
-      if (parts.length > 1 && parts[1].length > 2) {
-        SnackbarFeedback.showError(context, 'Up to 2 decimal places allowed');
-        return;
-      }
+      final amount = validation.paise!;
       setState(() => _isActionInProgress = true);
       try {
         final provider = context.read<FutureExpensesProvider>();
@@ -248,7 +250,13 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
           SnackbarFeedback.showSuccess(context, 'Item marked as purchased');
         }
       } catch (e) {
-        if (mounted) SnackbarFeedback.showError(context, 'Purchase failed: $e');
+        if (mounted) {
+          SnackbarFeedback.showError(
+            context,
+            e,
+            operation: FeedbackOperation.purchaseWishlist,
+          );
+        }
       } finally {
         if (mounted) setState(() => _isActionInProgress = false);
       }
@@ -260,11 +268,18 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
     final colorScheme = Theme.of(context).colorScheme;
     final isIncome = widget.entry is IncomeEntry;
     final isPlanned = widget.entry is PlannedEntry;
+    final isTransfer = widget.entry is TransferEntry;
+    final transfer = isTransfer ? widget.entry as TransferEntry : null;
 
     Color iconCircleBg;
     Color iconColor;
 
-    if (isIncome) {
+    if (isTransfer) {
+      iconCircleBg = colorScheme.surfaceContainerHigh;
+      iconColor = transfer!.isIntraWorkspace
+          ? colorScheme.primary
+          : (transfer.isIncoming ? colorScheme.secondary : colorScheme.onSurfaceVariant);
+    } else if (isIncome) {
       iconCircleBg = BudgoColors.incomeIconCircle(context);
       iconColor = BudgoColors.incomeIconColor(context);
     } else if (isPlanned) {
@@ -275,37 +290,13 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
       iconColor = BudgoColors.categoryIconColor(context);
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: BudgoColors.bottomSheetSurface(context),
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppRadius.lg),
-        ),
-      ),
-      padding: EdgeInsets.only(
-        left: AppSpacing.base,
-        right: AppSpacing.base,
-        top: AppSpacing.xl,
-        bottom: AppSpacing.xl + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Drag handle
-          Center(
-            child: Container(
-              width: 32.0,
-              height: 4.0,
-              decoration: BoxDecoration(
-                color: colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2.0),
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          // Large Category Icon Circle
+    return BudgoBottomSheet(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Large Category Icon Circle
           Center(
             child: Container(
               width: 56.0,
@@ -315,9 +306,13 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                isIncome
-                    ? Icons.arrow_downward
-                    : _categoryIcon(widget.entry.category),
+                isTransfer
+                    ? (transfer!.isIntraWorkspace
+                        ? Icons.swap_horiz_rounded
+                        : (transfer.isIncoming ? Icons.arrow_downward : Icons.arrow_outward))
+                    : isIncome
+                        ? Icons.arrow_downward
+                        : widget.entry.category.categoryIcon,
                 size: 28.0,
                 color: iconColor,
               ),
@@ -337,16 +332,16 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
 
           // Amount
           Text(
-            isIncome
-                ? '+${CurrencyFormatter.format(widget.entry.amount)}'
-                : isPlanned
+            isPlanned
                 ? 'Est. ${CurrencyFormatter.format(widget.entry.amount)}'
-                : '-${CurrencyFormatter.format(widget.entry.amount)}',
-            style: isIncome
+                : CurrencyFormatter.format(widget.entry.amount),
+            style: (isIncome || (isTransfer && transfer!.isIncoming))
                 ? AppTextStyles.amountDisplay(
                     context,
                   ).copyWith(color: BudgoColors.incomeColor(context))
-                : AppTextStyles.amountDisplay(context),
+                : (isTransfer && transfer!.isIntraWorkspace)
+                    ? AppTextStyles.amountDisplay(context).copyWith(color: colorScheme.onSurfaceVariant)
+                    : AppTextStyles.amountDisplay(context),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: AppSpacing.md),
@@ -368,6 +363,17 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                   ),
                   const Divider(height: AppSpacing.lg),
                   _buildDetailRow('Category', widget.entry.category),
+                  if (isTransfer) ...[
+                    const Divider(height: AppSpacing.lg),
+                    _buildDetailRow('Source Account', transfer!.sourceAccountName),
+                    const Divider(height: AppSpacing.lg),
+                    _buildDetailRow('Destination Account', transfer.destinationAccountName),
+                    const Divider(height: AppSpacing.lg),
+                    _buildDetailRow(
+                      'Status',
+                      transfer.rawTransfer.status.name.toUpperCase(),
+                    ),
+                  ],
                   if (widget.entry.notes != null &&
                       widget.entry.notes!.isNotEmpty) ...[
                     const Divider(height: AppSpacing.lg),
@@ -397,87 +403,82 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
 
           // Action Buttons
           if (_showPurchaseInput && isPlanned) ...[
-            TextFormField(
+            BudgoAmountField(
               controller: _purchaseAmountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
+              label: 'Actual Paid Amount',
               autofocus: true,
-              decoration: InputDecoration(
-                labelText: 'Actual Paid Amount (${MoneyFormatter.symbol})',
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.attach_money),
-              ),
             ),
             const SizedBox(height: AppSpacing.md),
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
+                  child: BudgoButton(
+                    label: 'Cancel',
+                    variant: BudgoButtonVariant.outlined,
                     onPressed: () => setState(() => _showPurchaseInput = false),
-                    child: const Text('Cancel'),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: FilledButton(
-                    onPressed: _isActionInProgress ? null : _purchasePlanned,
-                    child: _isActionInProgress
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Confirm Purchase'),
+                  child: BudgoButton(
+                    label: 'Confirm Purchase',
+                    isLoading: _isActionInProgress,
+                    onPressed: _purchasePlanned,
                   ),
                 ),
               ],
+            ),
+          ] else if (isTransfer) ...[
+            BudgoButton(
+              label: 'Reverse Transfer',
+              icon: Icons.undo_rounded,
+              variant: BudgoButtonVariant.destructive,
+              isLoading: _isActionInProgress,
+              onPressed: _delete,
             ),
           ] else ...[
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: BudgoButton(
+                    label: 'Edit',
+                    icon: Icons.edit_outlined,
+                    variant: BudgoButtonVariant.outlined,
                     onPressed: _edit,
-                    icon: const Icon(Icons.edit_outlined),
-                    label: const Text('Edit'),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _isActionInProgress ? null : _delete,
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Delete'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colorScheme.error,
-                      foregroundColor: colorScheme.onError,
-                    ),
+                  child: BudgoButton(
+                    label: 'Delete',
+                    icon: Icons.delete_outline,
+                    variant: BudgoButtonVariant.destructive,
+                    isLoading: _isActionInProgress,
+                    onPressed: _delete,
                   ),
                 ),
               ],
             ),
             if (isIncome && !(widget.entry as IncomeEntry).isConfirmed) ...[
               const SizedBox(height: AppSpacing.md),
-              FilledButton.icon(
-                onPressed: _isActionInProgress ? null : _confirmIncome,
-                icon: const Icon(Icons.check),
-                label: const Text('Confirm Income'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: colorScheme.tertiary,
-                ),
+              BudgoButton(
+                label: 'Confirm Income',
+                icon: Icons.check_rounded,
+                isLoading: _isActionInProgress,
+                onPressed: _confirmIncome,
               ),
             ],
             if (isPlanned) ...[
               const SizedBox(height: AppSpacing.md),
-              FilledButton.icon(
+              BudgoButton(
+                label: 'Mark as Purchased',
+                icon: Icons.shopping_cart_outlined,
                 onPressed: () => setState(() => _showPurchaseInput = true),
-                icon: const Icon(Icons.shopping_cart_outlined),
-                label: const Text('Mark as Purchased'),
               ),
             ],
           ],
-        ],
+          ],
+        ),
       ),
     );
   }

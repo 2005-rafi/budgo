@@ -1,0 +1,23 @@
+{
+  "appName": "Budgo",
+  "appDescriptor": "Personal Financial Assistant",
+  "appTagline": "Your Personal Finance Companion",
+  "taglineUppercase": "FINANCIAL ASSISTANT",
+  "fileSlug": "budgo",
+  "logoAsset": "assets/icon/app_icon.png",
+  "pdfLogoAsset": "assets/icon/app_logo_pdf.png",
+  "brandFontFamily": "BudgoBrand",
+  "taglineFontFamily": "BudgoTagline",
+  "developerName": "Mohammed Rafi H",
+  "contactEmail": "2005.mohammedrafi.h@gmail.com",
+  "copyrightYear": "2026",
+  "rightsNotice": "All Rights Reserved",
+  "licenseModel": "Proprietary License — Personal Non-Commercial Use",
+  "legalEffectiveDate": "November 11, 2026",
+  "jurisdiction": "India",
+  "releaseChannel": "Stable Channel",
+  "defaultBuildNumber": "300",
+  "showSourceLinks": false,
+  "repositoryUrl": "https://github.com/2005-rafi/expense-tracker-flutter"
+}
+
