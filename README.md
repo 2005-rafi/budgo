@@ -1,449 +1,349 @@
-# 1. Project Title
-# Budgo — Professional Expense & Financial Management App
-An offline-first, high-performance personal finance and expense management application built using Flutter.
+<div align="center">
+  <img src="assets/icon/app_logo_pdf.png" alt="App Logo" width="88" />
 
-**Mission:** Empower individuals to track, budget, and master their daily finances with zero latency, absolute privacy, and stunning design.
+  <h1>Budgo &mdash; Offline-First Personal Finance &amp; Multi-Workspace Ledger</h1>
 
----
+  <p>
+    <strong>Track expenses, isolate workspaces, guard your daily burn rate, and export publication-grade financial statements &mdash; 100% offline with zero servers, zero trackers, and 60/120&nbsp;FPS speed.</strong>
+  </p>
 
-# 2. Project Overview
+  <p>
+    <img src="https://img.shields.io/badge/Version-3.0.0%20(Build%20300)-39693B?style=for-the-badge" alt="Version 3.0.0" />
+    <img src="https://img.shields.io/badge/Flutter-3.x%20%7C%20Dart%20%5E3.8.1-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter & Dart" />
+    <img src="https://img.shields.io/badge/Design-Material%203%20Expressive-6750A4?style=for-the-badge" alt="Material 3" />
+    <img src="https://img.shields.io/badge/Architecture-100%25%20Offline--First-146C2E?style=for-the-badge" alt="Offline-First" />
+    <img src="https://img.shields.io/badge/License-Proprietary-B3261E?style=for-the-badge" alt="Proprietary License" />
+  </p>
 
-**What problem exists?** Traditional financial trackers suffer from bloated network requests, laggy interfaces, and subscription models. They often fail to manage large histories of records over years, leading to stuttering interfaces and memory leaks.
-**Why was this application created?** To provide a lightning-fast, offline-first alternative that leverages modern structural architecture and caching techniques.
-**What solution does it provide?** Budgo delivers an entirely offline, privacy-focused ledger with advanced budgeting, interactive analytics, wishlist tracking, and automated reminders.
-**Who are the intended users?** Freelancers, students, budget-conscious individuals, and privacy advocates.
-**What value does it deliver?** Instantaneous financial insights, zero data tracking, and a premium user experience free from delays or ads.
-
----
-
-# 3. Project Vision
-
-**Future direction:** Budgo aims to become a comprehensive localized financial ecosystem, supporting multi-profile management and localized backups while remaining 100% offline.
-**Intended ecosystem:** Core mobile applications on iOS and Android with a potential future desktop extension.
-**Long-term impact:** Establish a standard for how privacy-first financial tools should be architected in Flutter.
-**Strategic goals:** Support 10+ years of user transaction history without dropping below 60/120 FPS on standard devices.
+  <p>
+    <em>Notice: The current working title <strong>Budgo</strong> is governed from a single centralized manifest (<a href="tool/brand_manifest.json"><code>tool/brand_manifest.json</code></a>) ahead of final trademark branding. Latest release binaries and tags are published directly in <a href="https://github.com/2005-rafi/expense-tracker-flutter/releases">GitHub Releases</a> (see <a href="CHANGELOG.md"><code>CHANGELOG.md</code></a>).</em>
+  </p>
+</div>
 
 ---
 
-# 4. Problem Statement
-
-**Existing limitations:** Network-reliant apps are slow in low-connectivity areas. Existing offline apps often lack polished UI/UX or crash with large databases.
-**User pain points:** Laggy search functions, complex spreadsheet exports, forgotten recurring bills, and difficult budget tracking.
-**Market gaps:** A truly premium, aesthetically pleasing, completely free offline ledger built with modern architectural guidelines.
-**Technical challenges:** Parsing and querying thousands of NoSQL entries instantly, avoiding UI thread blocking during PDF/CSV exports, and scheduling robust background alarms.
-
----
-
-# 5. Objectives
-
-- Provide instantaneous UI interactions via custom sliding windows and min-heap algorithms.
-- Reduce manual effort by introducing draft-confirm income logic and automatic wishlist conversions.
-- Provide intelligent recommendations through an insight engine that translates metrics into human-readable alerts.
-- Enable robust offline processing via Isolate-driven thread offloading.
+## Table of Contents
+- [1. The Story: Why This App Exists (Meet Aarav)](#1-the-story-why-this-app-exists-meet-aarav)
+- [2. Feature Ecosystem & User Experience](#2-feature-ecosystem--user-experience)
+- [3. Screenshots](#3-screenshots)
+- [4. Tech Stack & Dependencies](#4-tech-stack--dependencies)
+- [5. Software Engineering Principles & Security](#5-software-engineering-principles--security)
+- [6. System Design, Architecture & Diagrams](#6-system-design-architecture--diagrams)
+- [7. Modules & Project Structure](#7-modules--project-structure)
+- [8. Centralized Branding & Anti-Tamper Workflow](#8-centralized-branding--anti-tamper-workflow)
+- [9. Releases, Setup & How to Run](#9-releases-setup--how-to-run)
+- [10. Development & Testing Verification](#10-development--testing-verification)
+- [11. Known Gaps & Future Implementation Roadmap](#11-known-gaps--future-implementation-roadmap)
+- [12. Copyright, License & Legal Notice](#12-copyright-license--legal-notice)
 
 ---
 
-# 6. Target Audience
+## 1. The Story: Why This App Exists (Meet Aarav)
 
-- **End Users:** Individuals wanting granular control over their daily and monthly cash flow.
-- **Developers:** Open-source contributors and students looking for an enterprise-level architecture reference in Flutter.
-- **Professionals:** Freelancers needing quick, exportable PDF/CSV reports.
+Meet **Aarav**, a 26-year-old salaried software consultant living in Bengaluru who handles three very different financial lives every month:
 
----
+1. His **Personal** household ledger in **INR (`₹`)** — rent, groceries, metro commutes via UPI, cash wallet spending, and an emergency medical envelope.
+2. His weekend **Freelance** client profile in **USD (`$`)** — software retainers and server domain bills that must **never** leak into his personal food-budget math or tax statements.
+3. A shared **ManaliTrip** travel wallet funded at the start of the month, where any unspent cash gets swept neatly back to his bank when he lands home.
 
-# 7. Feature Overview
+Aarav tried conventional finance apps and hit four recurring walls:
+- **Cloud bloat & privacy distrust:** Every keystroke synced to remote servers, loaded sluggish ads, or hung on underground train commutes with flaky 4G.
+- **Mixed Ledgers & Ghost Balances:** Logging a client domain charge polluted his personal monthly spend; moving money from Bank to Cash Wallet falsely counted as "income" or double-counted net worth.
+- **The "Zero-Expense Blindspot":** Halfway through the month, seeing *"Spent ₹14,200"* didn't answer the only question he cared about before buying dinner: *"How much can I safely spend **today** without missing my rent EMI?"*
+- **Toy Exports & Late Bill Notifications:** Exporting 3+ years of history froze the UI or mangled `₹` symbols in PDFs; battery-heavy background services killed recurring bill alerts.
 
-- **Core Module:** Home Dashboard, App Readiness Bootstrap.
-- **Ledger Module:** Expenses tracking, Category management, Income drafts.
-- **Planning Module:** Wishlist/Future Expenses planner, Budget configurations.
-- **Analytics Module:** Reports engine, Fl_Chart integrations, Activity Heatmap.
-- **Utilities Module:** Push Notifications, Report Exports, Dynamic Currencies.
-
----
-
-# 8. Detailed Feature Breakdown
-
-### Robust Expense Ledger
-- **Purpose:** Core financial tracking.
-- **Functionality:** Add, edit, delete, and categorize expenses instantly.
-- **User Interaction:** Bottom sheet forms for quick entry, swipe-to-delete actions on tiles.
-- **Technical Implementation:** Backed by Hive; implements an Inverted Prefix Search Index for $O(K \log M)$ search complexity.
-
-### Draft-Confirm Income Workflow
-- **Purpose:** Allows users to log expected income before it clears in their bank.
-- **Functionality:** Incomes are logged as "pending/draft". Confirming them modifies the active budget snapshot.
-- **User Interaction:** Swipe-right on an income tile to confirm it instantly.
-- **Technical Implementation:** Managed via `IncomeProvider` coordinating state mutations with the `BudgetProvider`.
-
-### Wishlist Planner
-- **Purpose:** Goal setting and future spending preparation.
-- **Functionality:** Track items to buy, marking high priority items.
-- **User Interaction:** 1-tap conversion of a planned item into an actual ledger expense.
-- **Technical Implementation:** Links the newly created expense with the wishlist item's ID for potential rollbacks.
-
-### Smart Budgeting Engine
-- **Purpose:** Prevent overspending.
-- **Functionality:** Set weekly/monthly limits and view progress bars.
-- **User Interaction:** Dashboard widget updates dynamically based on the current threshold.
-- **Technical Implementation:** Uses `AlertThrottleService` to track daily warnings, ensuring users aren't spammed with alerts.
-
-### Interactive Analytical Deck
-- **Purpose:** Visual financial insights.
-- **Functionality:** Pie charts, line trends, and daily heatmaps.
-- **User Interaction:** Tap to filter by date ranges; view heatmap intensities for spending velocity.
-- **Technical Implementation:** `fl_chart` library driven by `ReportsProvider`, utilizing Top-K Min-Heap algorithms to isolate heavy spending categories rapidly.
-
-### Push Reminders
-- **Purpose:** Automate recurring bill notifications.
-- **Functionality:** Schedule background alerts for dues.
-- **User Interaction:** Set reminders through the UI; interact with "Mark Paid" directly from the OS notification tray.
-- **Technical Implementation:** Utilizes `flutter_local_notifications` with inexact `AlarmManager` intents and isolated background handlers safely initializing the Timezone DB in isolated Dart execution contexts.
+**This app was engineered to solve every one of Aarav's problems on-device** — combining strict relational workspace isolation, integer minor-unit accounting, math-backed daily burn guidance, native OS RTC notification channels, and multi-isolate streaming exports without sending a single byte over the network.
 
 ---
 
-# 9. Application Workflow
+## 2. Feature Ecosystem & User Experience
 
-1. **Onboarding/Startup:** The app initializes Hive and runs data migrations in `AppInitializer.preInit`, followed by UI readiness in `postInit`.
-2. **Dashboard:** The user lands on the Home Screen showing the primary Budget Card, Top 5 Expenses, and quick action FAB.
-3. **Transaction Entry:** User taps "+" -> A dynamic bottom sheet slides up -> Inputs amount, title, and category -> Saves.
-4. **Analysis:** User navigates to the Reports tab -> Selects a date range -> Views generated charts -> Clicks "Export" to offload PDF generation to an Isolate -> Shares the document natively.
-5. **Review:** User checks the Activity tab, uses the prefix search to find an old record, and swipes left to delete it.
+### Strict Multi-Workspace Profiles (`Personal`, `Business`, `Trip`, `Project`, `Savings Pool`)
+- **Zero-Leak Isolation:** Expenses, Incomes, Accounts, Transfers, Savings Vaults, Planned Wishlists, Reports OLAP partitions, Bill Reminders, and Data Deletion operate strictly inside the active workspace scope.
+- **Per-Workspace Currency & Naming Safety:** Workspace creation enforces a grapheme-safe **20-character limit with zero spaces** (`BudgoInputPolicy.workspaceName`) across UI and domain layers so compact pills, notification titles, and filenames never wrap awkwardly.
+- **Fund-Sweep Deletion Gate:** Prevents accidentally deleting a secondary workspace containing unspent funds (`ValidationException`), prompting a pre-deletion cross-workspace sweep directly into a target account.
+
+### Accounts, Signed Net Equity & Atomic Self-Transfers
+- **Four Custody Types:** `Cash`, `Bank Account`, `UPI`, and `Credit Card`.
+- **Universal Signed Net Equity:** Liquid accounts store positive integer paise/cents (`balancePaise >= 0`); Credit Cards track debt naturally as non-positive balances (`<= 0`), eliminating branching math errors in net-worth totals.
+- **Self-Transfers & Crash-Safe Rollbacks:** Every account-to-account or workspace-to-workspace transfer executes under [`AtomicWriter`](lib/core/storage/atomic_writer.dart) and logs into an immutable `TransferJournalEntry` box for clean reversals.
+
+### Financial Intelligence & Safe-to-Spend Engine
+- **Safe-to-Spend (`STS`) Daily Burn Rate:** Divides free unallocated funds (capped by true liquid assets and upcoming unpaid bills) across the remaining days of the cycle (`>= 1`). Tapping the Safe-to-Spend badge on the Home Card opens an **Interactive Derivation Sheet** displaying the exact step-by-step arithmetic in plain language.
+- **Dedicated Savings Vaults:** Earmark money inside custodial accounts toward locked or flexible goals without inventing fake accounts.
+- **Pay-Yourself-First (`PYF`) Prompt & Draft Incomes:** Expected salaries start as drafts; swiping/confirming triggers an inline reserve nudge into your priority savings vault.
+- **Credit Card Settlement Triage:** Due banners on Home let users settle Total Due, Available Liquid Balance, or Custom Amounts in 1 tap.
+
+### Battery-Friendly OS Reminders (Per-Workspace Channels)
+- Uses OS-level `AlarmManager` / `UNUserNotificationCenter` schedules (`flutter_local_notifications` + `timezone`) rather than background Dart isolate timers, preserving battery on low-end to flagship hardware.
+- **Clean Tray Ergonomics:** Each workspace registers an isolated Android channel (`budgo_ws_<id>_v1`) and iOS thread group (`groupKey` / `threadIdentifier`), styled with logo iconography and collapsed vs expandable *"Read more"* details containing three minimal quick actions: **Done**, **Skip**, and **Cancel**.
+
+### Reports OLAP Engine & Publication-Grade Export (CSV & PDF)
+- **Sub-Millisecond Analytical Deck:** Pre-partitioned workspace cubes (`WorkspaceReportPartition`) deliver $O(1)$ workspace switching, binary-search date slicing, $O(N \log K)$ Top-K Min-Heap category extraction, calendar spending heatmaps, line trends, pie charts, and payment-method (`UPI`/`Cash`/`Bank`) filtering across **24,000+ records**.
+- **Scope-Selectable Exports:** Export **Single Workspace**, **Selective Checkboxes**, or **Combined All Workspaces**, with optional **expenses, incomes, transfers, archived records, and trend charts**.
+- **CSV Engine:** Streaming `IOSink` writer inside a background `Isolate` (`O(chunkSize)` RAM), **UTF-8 BOM (`EF BB BF`)** so Excel renders `₹ / € / £` natively, formula-injection cell sanitization (`=`, `+`, `-`, `@`), workspace reconciliation tables, and daily trend rows.
+- **PDF Engine:** Bundles offline `Roboto` TTF weights for full Unicode currency support (`₹`, `€`, `£`, `¥`, `$`), top-center brand masthead + resized `app_logo_pdf.png`, vector `pw.Chart` cumulative line visualization with legend, chronological ledger pagination (`28 rows/page`, $O(N)$ linear layout eliminating `MultiPage` table bottlenecks), and capped-detail safety (`4,000` rows max in PDF).
 
 ---
 
-# 10. Screenshots
+## 3. Screenshots
 
-> All screens follow a unified Material 3 standard.
+> Designed with a unified **Material 3 Expressive** token system, adaptive light/dark contrast modes, top-layer root `Overlay` toast notifications (`BudgoToastBanner`), and zero-black-screen wavy splash boot.
+
 <table>
   <tr>
-    <td><img src="assets/screenshots/Home Screen.jpg" width="250"/></td>
-    <td><img src="assets/screenshots/Activity Screen.jpg" width="250"/></td>
-    <td><img src="assets/screenshots/Settings Screen.jpg" width="250"/></td>
+    <td align="center"><img src="assets/screenshots/Home%20Screen.jpg" width="230"/><br/><sub><strong>Home Dashboard</strong></sub></td>
+    <td align="center"><img src="assets/screenshots/Activity%20Screen.jpg" width="230"/><br/><sub><strong>Activity &amp; Search</strong></sub></td>
+    <td align="center"><img src="assets/screenshots/Settings%20Screen.jpg" width="230"/><br/><sub><strong>Settings &amp; Lifecycle</strong></sub></td>
   </tr>
   <tr>
-    <td><img src="assets/screenshots/Report Screen - Pie Chart.jpg" width="250"/></td>
-    <td><img src="assets/screenshots/Report Screen - Charts.jpg" width="250"/></td>
-    <td><img src="assets/screenshots/Report Screen - Heatmap.jpg" width="250"/></td>
+    <td align="center"><img src="assets/screenshots/Report%20Screen%20-%20Pie%20Chart.jpg" width="230"/><br/><sub><strong>Category Breakdown</strong></sub></td>
+    <td align="center"><img src="assets/screenshots/Report%20Screen%20-%20Charts.jpg" width="230"/><br/><sub><strong>Trend Analytics</strong></sub></td>
+    <td align="center"><img src="assets/screenshots/Report%20Screen%20-%20Heatmap.jpg" width="230"/><br/><sub><strong>Spending Heatmap</strong></sub></td>
   </tr>
 </table>
 
 ---
 
-# 11. System Architecture
+## 4. Tech Stack & Dependencies
 
-### Architectural Pattern
-Budgo utilizes a **Layered Architecture** built over the **Provider pattern** for state management, loosely combining elements of Clean Architecture for domain separation.
+Verified directly from [`pubspec.yaml`](pubspec.yaml):
 
-### Layer Breakdown
-- **Presentation Layer:** Pure stateless consumption widgets and UI event triggers.
-- **State & Logic Layer (Providers):** Central nervous system. `ProxyProviders` handle dependency injection between branches (e.g., BudgetProvider needing IncomeProvider).
-- **Service & Utilities Layer:** Distinct singleton services isolating heavy processes (e.g., `ReportExportService` running independent Isolates).
-- **Data Access Layer (Repositories):** Interfaces hiding Hive box implementations.
-- **Persistence Layer:** Physical binary storage via Hive NoSQL.
+| Layer | Technology / Package | Version Constraint | Role in System |
+|---|---|---|---|
+| **Framework & Runtime** | Flutter SDK / Dart | Dart `^3.8.1` | Material 3 UI, multi-isolate execution, custom canvas painters |
+| **State Management** | `provider` | `^6.1.5` | `ChangeNotifier` & `ProxyProvider` dependency graph |
+| **Primary Persistence** | `hive` + `path_provider` | `^2.2.3` / `^2.1.5` | Binary box Key-Value store (`TypeId` adapters `0..5, 7..15`) |
+| **Settings Persistence** | `shared_preferences` | `^2.5.3` | Atomic/self-healing primitive UI preferences via `SafePreferences` |
+| **Charts & Visualization** | `fl_chart` | `^1.0.0` | Interactive Pie, Bar, and Line spending charts |
+| **Export Engines** | `pdf`, `csv`, `share_plus` | `^3.11.0` / `^6.0.0` / `^11.0.0` | Background-isolate PDF vector charts, streaming CSV, OS share bridge |
+| **OS Notifications** | `flutter_local_notifications`, `timezone`, `flutter_timezone` | `^18.0.0` / `^0.9.4` / `^5.0.2` | Native Android channels & iOS actionable notification schedules |
+| **Typography & Docs** | Bundled `Roboto` family, `google_fonts`, `flutter_markdown`, `intl` | `^6.2.1` / `^0.7.7+1` / `^0.20.2` | Offline TTF rendering (`allowRuntimeFetching = false`), policy reader |
+| **Codegen & Tooling** | `hive_generator`, `build_runner`, `flutter_launcher_icons`, `flutter_lints` | Dev dependencies | Hive TypeAdapter generation & strict static analysis |
 
 ---
 
-# 12. Architecture Diagram
+## 5. Software Engineering Principles & Security
+
+Every module in this codebase is structured around core engineering invariants:
+
+1. **SOLID & Centralized UI Governance:**
+   All interactive components live behind [`lib/design/budgo_ui.dart`](lib/design/budgo_ui.dart) (`BudgoAppBar`, `BudgoBottomSheet`, `BudgoButton`, `BudgoTextField`, `BudgoAmountField`, `BudgoDropdownField`, `BudgoActionDialog`, `BudgoLayeredActionLayout`, `AppBrandLogo`, `BudgoWavyProgressIndicator`, `BudgoToastBanner`). Repository abstractions (`AccountRepository`, `ExpenseRepository`, etc.) decouple state providers from physical storage.
+2. **ACID-Inspired Atomic Writes & Exact Integer Math (DBMS):**
+   - Monetary amounts are stored strictly as minor-unit **64-bit integers (`paise` / `cents`)**, eliminating IEEE-754 floating-point rounding drift.
+   - Multi-step mutations (transfers, vault deposits, credit settlements, reset wipes) run sequentially inside [`AtomicWriter`](lib/core/storage/atomic_writer.dart), backed by `JobRecord` & `TransferJournalEntry` write-ahead recovery markers checked by `JobReconciler` during startup.
+   - Batch cleanup chunks deletions (`500` records per slice) and records crash-recovery descriptors in `AppStateBox` so interrupted wipes resume idempotently.
+3. **Zero-Black-Screen Resilient Boot & Fault Tolerance:**
+   - Native Android (`launch_background.xml` light/night themes) and iOS (`LaunchScreen.storyboard`) match the Flutter splash theme (`#FFF8F2` / `#17130B`).
+   - `main()` mounts Frame #1 cleanly in `<16ms` via [`SplashScreen`](lib/screens/splash_screen.dart), while [`AppInitializer.boot()`](lib/core/initialization/app_initializer.dart) runs 7 staged initialization phases asynchronously with lazy box resolution. Platform notification failures degrade non-fatally; critical storage failures render [`BudgoStartupErrorView`](lib/design/components/budgo_startup_error_view.dart) instead of black screens or infinite spinners.
+4. **Data Structures & Performance (DSA):**
+   - **Sliding Activity Viewport:** `ActivityProvider` + `ExpensesProvider` paginate large ledgers incrementally instead of inflating thousands of offscreen list widgets.
+   - **In-Memory Prefix Index:** Enables instantaneous search across transaction histories.
+   - **Partitioned OLAP Cube:** Pre-aggregates daily, weekly, monthly, and yearly heatmaps in $O(1)$ per incremental write and $O(1)$ per workspace swap.
+5. **CIA Triad & Attribution Integrity:**
+   - **Confidentiality:** Strictly 0 network APIs, `android:allowBackup="false"`, and CSV formula-injection neutralization (`sanitizeCsvCell`).
+   - **Integrity:** [`BrandIntegrity`](lib/core/security/brand_integrity.dart) stores developer attribution, support email, copyright, and legal texts as stride-permuted rotating XOR byte arrays sealed by a pure-Dart **FIPS 180-4 SHA-256** digest (`AppBrand.verifyIntegrity()`). Any binary hex-patching mismatch triggers a visible **Build Integrity Notice** on [`AboutScreen`](lib/screens/about_screen.dart) and refuses to display spoofed developer/copyright attribution.
+   - **Dynamic Error UX:** [`AppErrorTranslator`](lib/core/errors/app_error_translator.dart) intercepts domain/storage/platform exceptions, strips internal stack/ID clutter, and renders root-overlay guidance banners with actionable steps.
+
+---
+
+## 6. System Design, Architecture & Diagrams
+
+### Layered Application Architecture
 
 ```mermaid
-graph TD
-    subgraph Presentation Layer
-        UI[Screens & Widgets] --> Shell[AppShell & Nav]
-    end
-
-    subgraph State & Business Logic Layer
-        Provider[ChangeNotifier Providers] --> ViewModels[ViewModels]
-    end
-
-    subgraph Service Layer
-        Isolates[Isolates / Export Service]
-        Insights[Insight Engine]
-    end
-
-    subgraph Data Access Layer
-        Repo[Repository Interfaces] --> HiveRepo[Hive Repositories]
-    end
-
-    subgraph Persistence Layer
-        Hive[Local Hive DB]
-        Prefs[Shared Preferences]
-    end
-
-    UI --> Provider
-    Provider --> Repo
-    Repo --> Hive
-    Provider --> Isolates
-    Provider --> Insights
+flowchart TD
+    UI["Presentation Layer\n(Screens, Home Cards, Charts, Sheets)"] --> DS["BudgoUI Design System\n(Tokens, Components, AppBrandLogo)"]
+    UI --> State["State Management (Provider)\nWorkspace, Account, Expenses, Reports, Vaults, Reminder"]
+    State --> Services["Domain Services & Workers\nSafeToSpend, TransferEngine, DataLifecycle,\nInsightEngine, NotificationService"]
+    Services --> Iso["Background Dart Isolates\nCSV IOSink Stream, Unicode Vector PDF, >2K OLAP"]
+    State --> Repos["Repository Interfaces\n(8 HiveRepositories + In-Memory Mocks for Tests)"]
+    Repos --> Lock["AtomicWriter Reentrant Zone Mutex"]
+    Lock --> Storage["Local Persistence\n12 Hive Boxes + SharedPreferences"]
 ```
 
----
+### Zero-Black-Screen Cold Startup Sequence
 
-# 13. Technology Stack
+```mermaid
+sequenceDiagram
+    participant OS as Android / iOS Launcher
+    participant Main as main.dart (<16ms)
+    participant Splash as SplashScreen (BudgoWavyProgressIndicator)
+    participant Boot as AppInitializer.boot()
+    participant UI as HomeScreen / Recovery
 
-- **Frontend:** Flutter & Dart
-- **Backend:** N/A (100% Offline-First)
-- **Database:** Hive (NoSQL Key-Value Store)
+    OS->>Main: Mount native launch_background / storyboard
+    Main->>Splash: runApp(BudgoApp) with lazy repos & defaults
+    Splash-->>OS: Render Frame #1 cleanly (logo, tagline, soft wave)
+    Main->>Boot: Start async 7-stage pipeline
+    Boot->>Splash: Stage 1-2: Preferences, Hive init & 12 boxes
+    Boot->>Splash: Stage 3-5: Migrations, Workspaces, Accounts, OLAP cube
+    Boot->>Splash: Stage 6: OS Notifications (8s non-fatal timeout guard)
+    alt Boot Succeeded
+        Boot->>Splash: markReady()
+        Splash->>UI: Fade/replace into HomeScreen
+    else Critical Storage Error
+        Boot->>Splash: markFailed(AppErrorTranslator message)
+        Splash->>UI: Render BudgoStartupErrorView (Retry / Close)
+    end
+```
 
----
+### Hive Local Schema Registry (`12` Boxes)
 
-# 14. Development Environment
-
-- **Flutter Version:** `^3.x.x`
-- **Dart Version:** `^3.8.1`
-- **IDE:** Android Studio / VS Code
-- **Operating System:** Cross-platform (Windows / macOS)
-- **SDK Requirements:** Android API 33+, iOS 14.0+
-
----
-
-# 15. Project Structure
-
-- **core/**: Design system tokens, architectural engines, layout constraints, app startup bootstraps.
-- **models/**: Type-safe entities (Expense, Budget, Reminder) with Hive TypeAdapters.
-- **navigation/**: Routing configuration and transition logic.
-- **provider/**: State managers connecting the UI to the Repositories.
-- **repositories/**: Abstraction layer over Hive database boxes.
-- **screens/**: Page-level Flutter widgets.
-- **services/**: Independent processing modules, background isolates, and alert throttling.
-- **themes/**: Material 3 light/dark mode properties.
-- **widgets/**: Granular components like forms, bottom sheets, buttons, and charts.
-
----
-
-# 16. State Management Strategy
-
-**Chosen Solution:** `Provider` (`ChangeNotifier`)
-**Reason for Selection:** Offers high performance with a low learning curve, fully integrated with Flutter's widget lifecycle.
-**Benefits:** Decoupled business logic, easy mocking for testing, `ProxyProvider` enables seamless dependency injections between states.
-**Trade-offs:** Can lead to boilerplate `notifyListeners()` calls and lacks the strict event-based tracking of BLoC.
-
----
-
-# 17. Navigation Architecture
-
-**Navigation Structure:** Uses a centralized `AppShell` with a `BottomNavigationBar` to control primary tabs.
-**Routing Strategy:** Constant route strings mapped via `onGenerateRoute` in `MaterialApp`.
-**Transitions:** Unified `SharedAxisTransition` from the `animations` package for seamless, modern page changes.
-**Route Guards:** Utilizes custom `AppBackGuard` widgets wrapping major data entry screens to trap accidental hardware back button presses.
+| Box Constant | Key Model(s) | `HiveType` ID | Responsibility |
+|---|---|---|---|
+| `expenses` | `Expense` | `0` | Debit ledger entries linked to workspace, account & category |
+| `incomes` | `Income` | `1` | Draft/confirmed income inflows |
+| `future_expenses` | `FutureExpense` | `2` | Planned wishlist purchases & 1-tap conversion link |
+| `budgets` | `Budget` | `3` | Per-workspace spending limit & period configuration |
+| `reminders` | `Reminder` | `4` | Workspace-scoped recurring/one-time OS notification records |
+| `jobs` | `JobRecord` | `5` | Persistent background reconciliation state |
+| `workspaces` | `Workspace`, `WorkspaceType` | `7`, `8` | Isolated personal, business, trip, project & pool profiles |
+| `accounts` | `Account`, `AccountType` | `9`, `10` | Cash, Bank, UPI & Credit Card signed balances |
+| `transfers` | `Transfer`, `TransferStatus` | `11`, `12` | Cross-account & cross-workspace atomic money movements |
+| `transfer_journal` | `TransferJournalEntry` (`13` / `14` records) | `13`, `14` | Debit/credit audit journal entries enabling clean reversals |
+| `savings_vaults` | `SavingsVault` | `15` | Virtual reserve goals backed by custodial liquid accounts |
+| `app_state` | Dynamic Box | &mdash; | Active workspace pointer, user categories, crash-recovery markers |
 
 ---
 
-# 18. UI and UX Design System
-
-- **Color System:** Semantic scaling via `Theme.of(context).colorScheme`. No raw hex codes allowed in views.
-- **Typography:** `GoogleFonts.roboto` driven by a unified `textTheme` extension.
-- **Component Design:** `AppCard`, `AppBudgetCard`, and `AppTransactionTile` follow Material 3 tonal elevation logic.
-- **Layout Principles:** Strict constraint tokens from `app_spacing.dart` (`xs: 4`, `sm: 8`, `md: 12`, `base: 16`).
-- **Accessibility:** High contrast ratios natively supported by the dynamic Material color themes.
-
----
-
-# 19. Responsive Design Strategy
-
-**Mobile Layout:** Optimised for standard mobile viewports with flexible bottom sheets spanning edge-to-edge.
-**Adaptive Components:** Components utilize `LayoutBuilder` and flexible constraint bounds to stretch efficiently on larger mobile displays.
-**Scaling Strategy:** Text scales dynamically with OS-level user preferences.
-
----
-
-# 20. Data Models
-
-### Expense (`Hive TypeId: 0`)
-- **Purpose:** Represents a completed transaction.
-- **Fields:** `id`, `amount`, `title`, `category`, `date`, `isExpense`.
-- **Validation Rules:** Amounts converted to and validated as minor-units (`int`) to prevent floating-point loss.
-
-### Reminder (`Hive TypeId: 4`)
-- **Purpose:** Represents a push notification schedule.
-- **Fields:** `id`, `title`, `scheduledAt`, `recurrenceType`, `isActive`.
-- **Relationships:** Spawns native `AlarmManager` intents.
-
----
-
-# 21. Database Design
-
-- **Collections/Boxes:** Independent boxes for Expenses, Incomes, Budgets, Wishlists, and Reminders.
-- **Storage Mode:** In-memory mapped files for instantaneous $O(1)$ read cycles.
-- **Indexing:** Virtual inverted prefix indexing generated in memory upon startup to prevent locking disk queries.
-- **Migration:** Custom `HiveMigration` safety engine validating schema compatibility during `preInit`.
-
----
-
-# 22. API Architecture
-
-**N/A** - Budgo operates entirely offline to guarantee maximum user data privacy.
-
----
-
-# 23. Local Storage Strategy
-
-**Primary Engine:** `Hive` (High speed, synchronous synchronous NoSQL store). Used for all relational and primary data points.
-**Secondary Engine:** `SharedPreferences`. Used strictly for lightweight primitives: Theme selection, currency configuration, and throttle timestamps.
-**Reason:** Hive is significantly faster for structured models, while SharedPreferences is sufficient for unencrypted global toggles.
-
----
-
-# 24. Data Flow Architecture
+## 7. Modules & Project Structure
 
 ```text
-User Interface
-↓ (Action/Event)
-State Management (ChangeNotifier)
-↓ (Method Call)
-Repository (Interface implementation)
-↓ (Atomic Write)
-Local Storage (Hive DB)
-↓ (Listeners trigger)
-State Management (Cache update & notifyListeners)
-↓ (Rebuild)
-User Interface
+├── android/ & ios/               # Native launch themes, notification icons & strings.xml
+├── assets/
+│   ├── fonts/                    # Offline Roboto Regular/Medium/Bold/Black + CondensedBold TTFs
+│   ├── icon/                     # Launcher emblem (app_icon.png) & PDF badge (app_logo_pdf.png)
+│   └── screenshots/              # Verified UI captures
+├── lib/
+│   ├── main.dart                 # Zero-blocking entry point & global ErrorWidget handler
+│   ├── core/
+│   │   ├── constants/            # app_brand.dart (generated), app_constants, app_input_limits, legal_policies
+│   │   ├── currency/             # CurrencyFormatter & Money paise formatting
+│   │   ├── errors/               # AppErrorTranslator & typed domain AppException hierarchy
+│   │   ├── initialization/       # Phased AppInitializer, AppReadinessNotifier, JobReconciler
+│   │   ├── registries/           # CategoryRegistry & CuratedIconsCatalog (100 offline icon pairs)
+│   │   ├── security/             # BrandIntegrity (pure-Dart SHA-256 + XOR masking verification)
+│   │   ├── storage/              # AtomicWriter, FinanceBoxes, AppStateBox, HiveMigration, MultiProfileMigration
+│   │   └── utils/                # InputValidators & O(N log K) Top-K Min-Heap
+│   ├── design/                   # Unified Material 3 Expressive Design System (budgo_ui.dart)
+│   │   ├── components/           # Reusable buttons, sheets, dialogs, text fields, counters, wavy progress
+│   │   ├── theme/                # M3 light/dark/high-contrast ThemeData & color extensions
+│   │   └── tokens/               # Spacing, layout breakpoints, motion, radius, typography & icons
+│   ├── models/                   # Immutable/Hive-annotated domain models + view_models/
+│   ├── navigation/               # AppRoutes & shared-axis transitions
+│   ├── providers/                # 12 ChangeNotifier state managers
+│   ├── repositories/             # Lazy-safe Repository interfaces + Hive implementations
+│   ├── screens/                  # Splash, AppShell, Home, Activity, Reports, Settings, About & Legal
+│   ├── services/                 # Analytics cube, Export engines, SafeToSpend, VaultAllocation, Transfers, OS Notifications
+│   └── widgets/
+│       ├── charts/               # Heatmap, Pie, Bar, Line & chart panels
+│       ├── home/                 # Budget card, Pay-Yourself-First, Credit due banner, Recent activity, Workspace pill
+│       ├── sheets/               # 15 modal bottom sheets & M3 readers (Export, Legal, Data Management, Reminders, Vaults)
+│       └── tiles/                # Settings tile, transaction tile, smart notification tile
+├── test/                         # 29 test files covering core, design, models, providers, services & widgets
+└── tool/
+    ├── brand_manifest.json       # Single-source brand configuration (excluded from APK assets)
+    └── sync_brand.dart           # CLI generator updating Dart brand vault, SHA-256 seal, Android & iOS labels
 ```
 
 ---
 
-# 25. Third-Party Dependencies
+## 8. Centralized Branding & Anti-Tamper Workflow
 
-- **`provider`**: Dependency injection and state sharing.
-- **`hive` & `hive_flutter`**: Blazing fast NoSQL offline database.
-- **`fl_chart`**: Renders highly customizable analytical charts.
-- **`flutter_local_notifications`**: Powers the underlying OS-level background intent scheduler for reminders.
-- **`pdf` & `printing`**: Used internally by Isolate threads to generate and print report documents.
-- **`intl`**: Currency formatting and localization rules.
+Because the current working name (**Budgo**) collides with an existing third-party app name, **zero UI copy hardcodes the brand name or developer details**. All strings are generated from a single manifest outside the bundled `assets/` tree:
 
----
-
-# 26. External Integrations
-
-- N/A (Fully Offline App). Native integrations include local file sharing bridging (via `share_plus`).
+1. Edit [`tool/brand_manifest.json`](tool/brand_manifest.json) (`appName`, `fileSlug`, `appTagline`, `developerName`, `contactEmail`, `showSourceLinks`, etc.).
+2. Sync everything in one command:
+   ```bash
+   fvm dart run tool/sync_brand.dart
+   ```
+3. This automatically regenerates [`lib/core/constants/app_brand.dart`](lib/core/constants/app_brand.dart), [`lib/core/constants/legal_policies.dart`](lib/core/constants/legal_policies.dart) (with refreshed SHA-256 digest & masked byte arrays), [`android/app/src/main/res/values/strings.xml`](android/app/src/main/res/values/strings.xml), and [`ios/Runner/Info.plist`](ios/Runner/Info.plist).
 
 ---
 
-# 27. Security Architecture
+## 9. Releases, Setup & How to Run
 
-- **Offline Isolation:** Data never leaves the physical device. Zero network vectors for data exfiltration.
-- **File System Protection:** Hive boxes are stored in the application's secure documents directory, impenetrable to other apps on unmodified OS environments.
-- **Input Validation:** Numeric string parsers validate length limits (e.g. ₹10,00,000 max) before saving binary states.
+### GitHub Releases (Pre-Built Binaries)
+A compiled release matching **Version 3.0.0 (`Build 300`)** is published directly in the **[GitHub Releases](https://github.com/2005-rafi/expense-tracker-flutter/releases)** section of this repository (full release history in [`CHANGELOG.md`](CHANGELOG.md)).
 
----
+### Prerequisites
+- **Flutter SDK** compatible with Dart `^3.8.1` (managed cleanly with `fvm` if configured)
+- Android Studio / Xcode toolchain for mobile device/emulator builds
 
-# 28. Error Handling Strategy
+### Run Locally from Source
 
-- **Runtime Exceptions:** Wrapped in isolated `try/catch` blocks.
-- **Concurrency Errors:** Eradicated via the custom `AtomicWriter` reentrant mutex zone queue preventing file locks.
-- **Background Isolates:** If an isolated PDF generation fails, a distinct error payload returns through the `SendPort`, displaying a clean SnackBar to the user.
-- **Logging Strategy:** Internal `JobRecord` persistent tracking saves failed actions for subsequent startup reconciliation.
+```bash
+# 1. Clone the repository
+git clone https://github.com/2005-rafi/expense-tracker-flutter.git
+cd expense-tracker-flutter
 
----
+# 2. Fetch Flutter packages
+fvm flutter pub get
 
-# 29. Performance Optimization
+# 3. Sync centralized branding & SHA-256 attribution vault (optional unless editing brand_manifest.json)
+fvm dart run tool/sync_brand.dart
 
-- **Custom Sliding Viewport:** Only the nearest 100 widgets are inflated into memory during deep scroll sessions via `advanceWindow()`.
-- **Top-K Min-Heap:** Limits database sorting latency by isolating top expenses in $O(N \log K)$ runtime.
-- **Isolate Offloading:** Heavy serialization (PDF/CSV) runs on separate OS threads to prevent 60FPS UI jank.
-- **Prefix Search Indexes:** Pre-calculates search queries preventing full-database regex matching.
+# 4. Run on a connected Android/iOS device or emulator
+fvm flutter run
+```
 
----
+*(Note: If you modify Hive `@HiveType` models, regenerate `.g.dart` adapters first:)*
+```bash
+fvm dart run build_runner build --delete-conflicting-outputs
+```
 
-# 30. Offline Functionality
-
-Budgo is a fundamentally offline platform.
-- **Data Caching:** Everything is stored durably via Hive.
-- **Synchronization:** N/A natively, preventing sync conflict edge cases.
-
----
-
-# 31. Testing Strategy
-
-- **Unit Testing:** Validates algorithms, state transitions, reminder schedulers, and minor-unit monetary math.
-- **Widget Testing:** Validates specific `ChangeNotifier` triggers and layout guards (`AppBackGuard`).
-- **Command:** Validated via `flutter test`. Full green suite confirming zero regressions across the `Provider` layer.
-
----
-
-# 32. Scalability Considerations
-
-- **Modular Design:** Layers are fully isolated. Moving from Hive to SQLite or Realm would only require rewriting the Repository interfaces.
-- **Feature Expansion:** Using Provider proxies allows infinite feature depth without polluting the root state graph.
+### Recommended Hardened Production Build
+```bash
+fvm flutter build apk --release --obfuscate --split-debug-info=build/symbols
+# or Android App Bundle:
+fvm flutter build appbundle --release --obfuscate --split-debug-info=build/symbols
+```
+> Enables R8 code shrinking (`isMinifyEnabled = true`, already configured in `build.gradle.kts`) and strips Dart class/method symbols while preserving stack trace decoding via `build/symbols`.
 
 ---
 
-# 33. Key Learnings
+## 10. Development & Testing Verification
 
-- **Flutter Architecture:** Properly isolating presentation from domain logic drastically reduces bug velocity.
-- **Isolates:** Background processing is vital for offline apps handling thousands of rows; UI stutters are completely preventable.
-- **Native Android Binding:** Background intents require careful manifest configuration (like `ScheduledNotificationReceiver`) and strict memory initialization protocols when returning to Dart.
+All code-quality gates and automated test suites are strictly maintained and executed step-by-step:
 
----
+| Verification Command | Scope | Verified Result |
+|---|---|---|
+| `fvm flutter analyze` | Full project static lint & type safety | `0 issues found` |
+| `fvm flutter test test/core test/design test/models` | Error translator, SHA-256 & byte masking integrity, categories, M3 UI tokens, models | `44/44 passed` |
+| `fvm flutter test test/provider` | Activity, Categories, Reminders, Workspaces (`TEST-WS-01`, `TEST-SWEEP-01`) | `22/22 passed` |
+| `fvm flutter test test/services` | `24,000`-row OLAP slicing, streaming CSV/PDF isolates, Safe-to-Spend math, Data Lifecycle wipes | `30/30 passed` |
+| `fvm flutter test --concurrency=1 --timeout 30s test/widgets` | Splash boot, About & Legal sheet, layered actions, input limits, isolated reports & sheets | `31/31 passed` |
 
-# 34. Future Roadmap
-
-**Short-Term Goals:** Expand the dynamic currency system with automatic locale detection.
-**Mid-Term Goals:** Build an automated encrypted Google Drive / iCloud backup bridge.
-**Long-Term Goals:** Expand the ecosystem with a native MacOS / Windows desktop client sharing the same offline Hive structure.
-
----
-
-# 35. Setup Instructions
-
-The latest application binaries are available in the GitHub Releases section. 
-
-### Local Installation
-1. Clone the repository: `git clone https://github.com/2005-rafi/budgo.git`
-2. Navigate to directory: `cd expense`
-3. Fetch dependencies: `flutter pub get`
-4. Run code generation (optional): `flutter pub run build_runner build --delete-conflicting-outputs`
-5. Boot application: `flutter run`
+**Total Automated Coverage:** **127 / 127 tests passing** across **29 test files**.
 
 ---
 
-# 36. Configuration Guide
+## 11. Known Gaps & Future Implementation Roadmap
 
-- **Environment Variables:** None required.
-- **Firebase Setup:** N/A.
+To keep contributors and engineering reviewers informed with full transparency, the following items are **currently not implemented** in this codebase and remain open for future releases:
 
----
-
-# 37. Build Instructions
-
-**Android APK:** `flutter build apk --release`
-**Android App Bundle (AAB):** `flutter build appbundle --release --obfuscate --split-debug-info=build/debug-info`
-**iOS Build:** `flutter build ipa --release`
-
----
-
-# 38. Deployment Guide
-
-- Built using GitHub actions.
-- Semantic Versioning Strategy dictates tags (`v1.0.0`).
-- Released directly to the GitHub releases page as `app-release.apk`.
+1. **Biometric / PIN App Lock (`local_auth`):** Opening the app does not currently require fingerprint, FaceID, or PIN authentication (`Privacy Mode` only masks monetary figures visually on cards).
+2. **Encryption at Rest (`HiveAesCipher`):** Local Hive boxes are sandboxed by the OS (`android:allowBackup="false"`), but database box files are not encrypted with an AES-256 key stored in Android Keystore / iOS Keychain.
+3. **Structured Backup Import / Cross-Device Restore:** The app exports human-readable CSV and PDF financial statements, **but has no import/restore parser** for `.csv` or encrypted `.backup` files to migrate history onto a replacement device.
+4. **Cross-Currency Exchange Rate Conversion:** Multi-currency workspaces (`₹`, `$`, `€`, `£`, `¥`) remain strictly isolated in their native units with zero FX conversion engine for consolidated combined-currency net worth.
+5. **Localization (`l10n` / ARB Files):** UI labels and system messages are currently English-only (`intl` handles date/currency formatting, not string translation bundles).
+6. **Receipt Attachments & SMS/Notification Auto-Capture:** All transactions are logged manually or promoted from Reminders/Wishlist; there is no camera receipt scanner, OCR, or banking SMS parser.
+7. **Automated Split-Bill Ledger inside `SavingsPool` Workspaces:** `SavingsPool` currently tracks pooled balances and transfers rather than per-member debt splitting (`who owes whom`).
+8. **Production Publishing & CI Setup:**
+   - Replace placeholder `applicationId = "com.example.expense"` ([`android/app/build.gradle.kts`](android/app/build.gradle.kts#L25)), release signing (`debug` key currently assigned to `release`), and iOS bundle identifier prior to App Store / Google Play submission.
+   - Desktop (`windows` / `macos` / `linux`) and `web` shells currently render mobile-oriented `BottomNavigationBar` layouts rather than adaptive NavigationRails.
+   - Add `.github/workflows/` CI automation for automated test & release binary verification.
 
 ---
 
-# 39. Contributing Guidelines
+## 12. Copyright, License & Legal Notice
 
-- **Branch Strategy:** Fork and create feature branches (`feature/add-dark-mode`).
-- **Commit Standards:** Prefer conventional commits (e.g. `feat: xyz`, `fix: abc`).
-- **Pull Request Workflow:** PRs must pass `flutter analyze` and `flutter test`.
+**Copyright &copy; 2026 Mohammed Rafi H. All Rights Reserved.**
 
----
+This software, its source architecture, algorithms, branding assets, UI/UX design system, protected metadata mechanisms, and documentation are licensed under a **Proprietary Software License & End-User License Agreement (EULA)** — see [`LICENSE`](LICENSE) for complete binding terms:
 
-# 40. License
-
-Standard open-source usage rights. (See `LICENSE` file if included).
-
----
-
-# 41. Author Information
-
-- **Name:** Rafi
-- **GitHub:** [2005-rafi](https://github.com/2005-rafi)
-
----
-
-# 42. Acknowledgements
-
-- The Flutter & Dart core team.
-- Maintainers of `hive`, `provider`, and `fl_chart`.
-- Material 3 Design System documentation.
-
----
+- **Personal Non-Commercial Use Only:** Downloading or running the software grants a limited, revocable, non-transferable license solely for personal, non-commercial financial tracking.
+- **Strictly Prohibited:** Commercial redistribution, repackaging, cloning, white-labeling, rebranding, or bypassing developer attribution, copyright notices, or integrity checks without explicit prior written authorization from **Mohammed Rafi H**.
+- **Third-Party Open-Source Attribution:** Underlying upstream libraries and fonts (including the Flutter SDK, packages listed in `pubspec.yaml`, and SIL OFL `Roboto` fonts) remain licensed independently under their respective BSD / MIT / Apache-2.0 / OFL licenses, viewable inside **About & Legal &rarr; Open Source Licenses**.
+- **Disclaimer:** All budgeting calculations, daily allowance metrics, and charts are provided **"AS IS"** purely for personal tracking and do **not** constitute certified financial, tax, investment, or legal advice.

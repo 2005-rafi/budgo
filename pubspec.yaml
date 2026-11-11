@@ -1,21 +1,18 @@
 name: expense
 description: "A new Flutter project."
 publish_to: 'none'
-version: 2.0.0
+version: 3.0.0+300
 
 environment:
   sdk: ^3.8.1
 
 dependencies:
-  auto_size_text: ^3.0.0
   collection: ^1.18.0
   fl_chart: ^1.0.0
   flutter:
     sdk: flutter
-  flutter_launcher_icons: ^0.14.4
   google_fonts: ^6.2.1
   hive: ^2.2.3
-  hive_flutter: ^1.1.0
   intl: ^0.20.2
   path_provider: ^2.1.5
   provider: ^6.1.5
@@ -28,11 +25,13 @@ dependencies:
   flutter_timezone: ^5.0.2
   url_launcher: ^6.3.2
   flutter_markdown: ^0.7.7+1
+  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
   build_runner: ^2.4.13
   hive_generator: ^2.0.1
 
@@ -40,6 +39,32 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon/app_icon.png
+    - assets/icon/app_logo_pdf.png
+    - assets/fonts/Roboto-Regular.ttf
+    - assets/fonts/Roboto-Medium.ttf
+    - assets/fonts/Roboto-Bold.ttf
+    - assets/fonts/Roboto-Black.ttf
+    - assets/fonts/RobotoCondensed-Bold.ttf
+
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Roboto-Black.ttf
+          weight: 900
+    - family: BudgoBrand
+      fonts:
+        - asset: assets/fonts/Roboto-Black.ttf
+          weight: 900
+    - family: BudgoTagline
+      fonts:
+        - asset: assets/fonts/RobotoCondensed-Bold.ttf
+          weight: 700
 
 flutter_icons:
   android: true

@@ -110,7 +110,12 @@ Thumbs.db
 /graphify-out
 .agents
 .trae
+.gemini
+.claude
+.cursor
 AGENTS.md
 CLAUDE.md
 build_outputs.txt
+build/symbols/
+
 
