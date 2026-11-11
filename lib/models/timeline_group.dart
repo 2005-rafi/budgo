@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'transaction_entry.dart';
+import 'package:expense/models/transaction_entry.dart';
 
 @immutable
 class TimelineGroup {

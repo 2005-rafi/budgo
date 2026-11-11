@@ -43,6 +43,9 @@ class FutureExpense extends HiveObject {
   @HiveField(10)
   DateTime? purchasedAt;
 
+  @HiveField(11, defaultValue: 'default_personal')
+  String workspaceId;
+
   FutureExpense({
     required this.id,
     required this.title,
@@ -55,5 +58,6 @@ class FutureExpense extends HiveObject {
     this.linkedExpenseKey,
     this.purchasedAmount,
     this.purchasedAt,
+    this.workspaceId = 'default_personal',
   });
 }

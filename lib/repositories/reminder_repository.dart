@@ -1,7 +1,8 @@
 import 'package:hive/hive.dart';
-import '../core/app_exception.dart';
-import '../models/reminder.dart';
-import '../core/atomic_writer.dart';
+import 'package:expense/core/errors/app_exception.dart';
+import 'package:expense/models/reminder.dart';
+import 'package:expense/core/storage/atomic_writer.dart';
+import 'package:expense/core/constants/app_constants.dart';
 
 abstract class ReminderRepository {
   Future<List<Reminder>> getAll();
@@ -13,9 +14,12 @@ abstract class ReminderRepository {
 }
 
 class HiveReminderRepository implements ReminderRepository {
-  Box<Reminder> get _box => Hive.box<Reminder>('reminders');
+  final Box<Reminder>? _injectedBox;
 
-  HiveReminderRepository();
+  HiveReminderRepository([this._injectedBox]);
+
+  Box<Reminder> get _box =>
+      _injectedBox ?? Hive.box<Reminder>(AppConstants.kRemindersBox);
 
   @override
   Stream<void> watch() => _box.watch();

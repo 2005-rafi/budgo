@@ -6,6 +6,7 @@ class FilterCriteria {
   final DateTime? date;
   final DateTimeRange? dateRange;
   final bool highSpendOnly;
+  final String? paymentMethod;
 
   const FilterCriteria({
     this.searchQuery = '',
@@ -13,6 +14,7 @@ class FilterCriteria {
     this.date,
     this.dateRange,
     this.highSpendOnly = false,
+    this.paymentMethod,
   });
 
   FilterCriteria copyWith({
@@ -21,6 +23,7 @@ class FilterCriteria {
     DateTime? date,
     DateTimeRange? dateRange,
     bool? highSpendOnly,
+    String? paymentMethod,
   }) {
     return FilterCriteria(
       searchQuery: searchQuery ?? this.searchQuery,
@@ -28,6 +31,7 @@ class FilterCriteria {
       date: date ?? this.date,
       dateRange: dateRange ?? this.dateRange,
       highSpendOnly: highSpendOnly ?? this.highSpendOnly,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
     );
   }
 }

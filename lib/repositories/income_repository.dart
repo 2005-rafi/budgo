@@ -1,7 +1,8 @@
 import 'package:hive/hive.dart';
-import '../core/app_exception.dart';
-import '../models/income.dart';
-import '../core/atomic_writer.dart';
+import 'package:expense/core/errors/app_exception.dart';
+import 'package:expense/models/income.dart';
+import 'package:expense/core/storage/atomic_writer.dart';
+import 'package:expense/core/constants/app_constants.dart';
 
 /// Repository interface for managing [Income] records.
 abstract class IncomeRepository {
@@ -36,24 +37,32 @@ abstract class IncomeRepository {
 
 /// Hive implementation of [IncomeRepository].
 class HiveIncomeRepository implements IncomeRepository {
-  Box<Income> get _box => Hive.box<Income>('incomes');
+  final Box<Income>? _injectedBox;
 
-  HiveIncomeRepository();
+  HiveIncomeRepository([this._injectedBox]);
+
+  Box<Income> get _box =>
+      _injectedBox ?? Hive.box<Income>(AppConstants.kIncomesBox);
 
   @override
   Stream<void> watch() => _box.watch();
 
-  final Map<int, int> _confirmedMonthTotals = {};
+  // Partitioned by workspaceId -> (monthKey -> confirmedPaise)
+  final Map<String, Map<int, int>> _confirmedMonthTotalsByWs = {};
   bool _isTotalsInitialized = false;
+
+  String _normWs(String workspaceId) =>
+      workspaceId.isEmpty ? AppConstants.kDefaultWorkspaceId : workspaceId;
 
   void _ensureTotalsInitialized() {
     if (_isTotalsInitialized) return;
-    _confirmedMonthTotals.clear();
+    _confirmedMonthTotalsByWs.clear();
     for (final income in _box.values) {
       if (income.isConfirmed) {
+        final ws = _normWs(income.workspaceId);
         final monthKey = income.date.year * 100 + income.date.month;
-        _confirmedMonthTotals[monthKey] =
-            (_confirmedMonthTotals[monthKey] ?? 0) + income.amount;
+        final wsMap = _confirmedMonthTotalsByWs.putIfAbsent(ws, () => {});
+        wsMap[monthKey] = (wsMap[monthKey] ?? 0) + income.amount;
       }
     }
     _isTotalsInitialized = true;
@@ -63,7 +72,18 @@ class HiveIncomeRepository implements IncomeRepository {
   int confirmedForMonth(DateTime date) {
     _ensureTotalsInitialized();
     final monthKey = date.year * 100 + date.month;
-    return _confirmedMonthTotals[monthKey] ?? 0;
+    int total = 0;
+    for (final wsMap in _confirmedMonthTotalsByWs.values) {
+      total += wsMap[monthKey] ?? 0;
+    }
+    return total;
+  }
+
+  /// Workspace-isolated monthly confirmed income lookup (O(1) hash hit).
+  int confirmedForMonthInWorkspace(DateTime date, String workspaceId) {
+    _ensureTotalsInitialized();
+    final monthKey = date.year * 100 + date.month;
+    return _confirmedMonthTotalsByWs[_normWs(workspaceId)]?[monthKey] ?? 0;
   }
 
   @override
@@ -71,7 +91,6 @@ class HiveIncomeRepository implements IncomeRepository {
     try {
       final list = _box.values.toList();
       list.sort((a, b) => b.date.compareTo(a.date));
-      // Re-initialize totals cache when reading all
       _isTotalsInitialized = false;
       _ensureTotalsInitialized();
       return list;
@@ -88,9 +107,10 @@ class HiveIncomeRepository implements IncomeRepository {
         await _box.flush();
         _ensureTotalsInitialized();
         if (income.isConfirmed) {
+          final ws = _normWs(income.workspaceId);
           final monthKey = income.date.year * 100 + income.date.month;
-          _confirmedMonthTotals[monthKey] =
-              (_confirmedMonthTotals[monthKey] ?? 0) + income.amount;
+          final wsMap = _confirmedMonthTotalsByWs.putIfAbsent(ws, () => {});
+          wsMap[monthKey] = (wsMap[monthKey] ?? 0) + income.amount;
         }
       } catch (e) {
         throw StorageException('Failed to add income: $e');
@@ -109,9 +129,10 @@ class HiveIncomeRepository implements IncomeRepository {
 
         if (!wasConfirmed) {
           _ensureTotalsInitialized();
+          final ws = _normWs(income.workspaceId);
           final monthKey = income.date.year * 100 + income.date.month;
-          _confirmedMonthTotals[monthKey] =
-              (_confirmedMonthTotals[monthKey] ?? 0) + income.amount;
+          final wsMap = _confirmedMonthTotalsByWs.putIfAbsent(ws, () => {});
+          wsMap[monthKey] = (wsMap[monthKey] ?? 0) + income.amount;
         }
       } catch (e) {
         throw StorageException('Failed to confirm income: $e');
@@ -126,6 +147,7 @@ class HiveIncomeRepository implements IncomeRepository {
         final isConfirmed = income.isConfirmed;
         final amount = income.amount;
         final date = income.date;
+        final ws = _normWs(income.workspaceId);
 
         await income.delete();
         await _box.flush();
@@ -133,8 +155,15 @@ class HiveIncomeRepository implements IncomeRepository {
         if (isConfirmed) {
           _ensureTotalsInitialized();
           final monthKey = date.year * 100 + date.month;
-          _confirmedMonthTotals[monthKey] =
-              (_confirmedMonthTotals[monthKey] ?? 0) - amount;
+          final wsMap = _confirmedMonthTotalsByWs[ws];
+          if (wsMap != null) {
+            final next = (wsMap[monthKey] ?? 0) - amount;
+            if (next <= 0) {
+              wsMap.remove(monthKey);
+            } else {
+              wsMap[monthKey] = next;
+            }
+          }
         }
       } catch (e) {
         throw StorageException('Failed to delete income: $e');

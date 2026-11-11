@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:expense/core/app_spacing.dart';
+import 'package:expense/design/tokens/app_spacing.dart';
 import 'package:expense/models/transaction_entry.dart';
-import 'package:expense/widgets/common/app_transaction_tile.dart';
-import 'package:expense/widgets/common/app_card.dart';
-import 'package:expense/widgets/forms/transaction_detail_sheet.dart';
+import 'package:expense/widgets/tiles/app_transaction_tile.dart';
+import 'package:expense/design/components/budgo_card.dart';
+import 'package:expense/widgets/sheets/transaction_detail_sheet.dart';
 
 class RecentActivityList extends StatelessWidget {
   final List<TransactionEntry> transactions;
@@ -45,6 +45,9 @@ class RecentActivityList extends StatelessWidget {
               isIncome: entry is IncomeEntry,
               isPending: entry is IncomeEntry && !entry.isConfirmed,
               isPlanned: entry is PlannedEntry,
+              isTransfer: entry is TransferEntry,
+              isTransferOutgoing: entry is TransferEntry && entry.isOutgoing,
+              isTransferIntra: entry is TransferEntry && entry.isIntraWorkspace,
               showDivider: false, // Hide divider inside individual cards
               onTap: () => TransactionDetailSheet.show(context, entry),
               onDelete: () => onDelete(entry),

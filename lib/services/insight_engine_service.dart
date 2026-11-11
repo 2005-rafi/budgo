@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:expense/models/view_models/insight_model.dart';
 import 'package:expense/services/reports_data_service.dart';
 import 'package:expense/repositories/reminder_repository.dart';
-import 'package:expense/core/money.dart';
+import 'package:expense/core/currency/currency_formatter.dart';
+import 'package:expense/core/constants/app_constants.dart';
 import 'package:expense/models/reminder.dart';
 
 class InsightEngineService {
@@ -18,18 +19,29 @@ class InsightEngineService {
   Future<List<InsightModel>> generateInsights(
     DateTime now,
     int? budgetLimit,
-    int? spentThisMonth,
-  ) async {
-    // 1. Fetch data from repos/services
-    final List<Reminder> reminders = await reminderRepo.getAll();
+    int? spentThisMonth, {
+    String? workspaceId,
+  }) async {
+    // 1. Fetch data from repos/services (scoped strictly to active workspace when set)
+    final targetWs = workspaceId?.trim() ?? '';
+    final List<Reminder> reminders = (await reminderRepo.getAll()).where((r) {
+      if (targetWs.isEmpty) return true;
+      final rWs =
+          r.workspaceId.isEmpty ? AppConstants.kDefaultWorkspaceId : r.workspaceId;
+      return rWs == targetWs;
+    }).toList();
 
-    // Prepare serializable payload for isolate
+    // Prepare workspace-isolated serializable payload for isolate
+    final partition = targetWs.isEmpty
+        ? reportsDataService.partitionFor(AppConstants.kDefaultWorkspaceId)
+        : reportsDataService.partitionFor(targetWs);
+
     final payload = {
       'now': now.toIso8601String(),
       'budgetLimit': budgetLimit,
       'spentThisMonth': spentThisMonth,
-      'monthTotals': reportsDataService.monthTotals,
-      'monthCatTotals': reportsDataService.monthCatTotals,
+      'monthTotals': partition.monthTotals,
+      'monthCatTotals': partition.monthCatTotals,
       'reminders': reminders
           .map(
             (r) => {

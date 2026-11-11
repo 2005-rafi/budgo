@@ -2,8 +2,9 @@ import 'package:hive/hive.dart';
 
 part 'budget.g.dart';
 
-// SCHEMA VERSION: 1
+// SCHEMA VERSION: 2
 // Version 1: fields 0-6 (original)
+// Version 2: added field 7 (workspaceId, default 'default_personal')
 @HiveType(typeId: 3)
 class Budget extends HiveObject {
   @HiveField(0)
@@ -27,6 +28,9 @@ class Budget extends HiveObject {
   @HiveField(6)
   double warningThreshold; // Percentage (e.g., 0.9 for 90%)
 
+  @HiveField(7, defaultValue: 'default_personal')
+  String workspaceId;
+
   Budget({
     required this.id,
     required this.limit,
@@ -35,5 +39,6 @@ class Budget extends HiveObject {
     required this.endDate,
     this.isActive = true,
     this.warningThreshold = 0.9,
+    this.workspaceId = 'default_personal',
   });
 }

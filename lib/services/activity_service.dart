@@ -4,12 +4,17 @@ import 'package:expense/models/timeline_group.dart';
 import 'package:expense/models/expense.dart';
 import 'package:expense/models/income.dart';
 import 'package:expense/models/future_expense.dart';
+import 'package:expense/models/transfer.dart';
 
 class ActivityService {
   List<TimelineGroup> buildTimeline({
     required List<Expense> filteredExpenses,
     required List<Income> allIncomes,
     required List<FutureExpense> allFutureExpenses,
+    List<Transfer> allTransfers = const [],
+    String activeWorkspaceId = '',
+    Map<String, String> accountNames = const {},
+    Map<String, String> workspaceNames = const {},
     required FilterCriteria criteria,
   }) {
     final now = DateTime.now();
@@ -19,6 +24,8 @@ class ActivityService {
       'Expenses',
       'Income',
       'Planned',
+      'Transfer',
+      'Transfers',
       'Today',
       'This Week',
       'This Month',
@@ -39,7 +46,7 @@ class ActivityService {
         }).isEmpty;
 
     // If specific categories are selected, we show anything matching those categories.
-    // Otherwise, we respect the Expenses/Income/Planned toggles.
+    // Otherwise, we respect the Expenses/Income/Planned/Transfer toggles.
     final showExpenses =
         hasSpecificCategory ||
         showAll ||
@@ -54,6 +61,12 @@ class ActivityService {
         hasSpecificCategory ||
         showAll ||
         criteria.categories.contains('Planned');
+
+    final showTransfers =
+        (hasSpecificCategory && specificCategories.contains('Transfer')) ||
+        showAll ||
+        criteria.categories.contains('Transfer') ||
+        criteria.categories.contains('Transfers');
 
     // 1. Prepare and filter sources (already sorted descending)
     final List<TransactionEntry> expenseEntries = [];
@@ -123,15 +136,74 @@ class ActivityService {
       }
     }
 
+    final List<TransactionEntry> transferEntries = [];
+    if (showTransfers) {
+      final workspaceTransfers = activeWorkspaceId.isEmpty
+          ? allTransfers
+          : allTransfers
+              .where((t) =>
+                  t.sourceWorkspaceId == activeWorkspaceId ||
+                  t.destinationWorkspaceId == activeWorkspaceId)
+              .toList();
+      final filteredTransfers = _filterTransfers(workspaceTransfers, criteria);
+      for (final t in filteredTransfers) {
+        final isIntra = t.sourceWorkspaceId == t.destinationWorkspaceId;
+        final isOut = t.sourceWorkspaceId == activeWorkspaceId;
+        final direction = isIntra
+            ? TransferDirection.intraWorkspace
+            : isOut
+                ? TransferDirection.outgoing
+                : TransferDirection.incoming;
+
+        final srcAcc = accountNames[t.sourceAccountId] ?? 'Account';
+        final destAcc = accountNames[t.destinationAccountId] ?? 'Account';
+        final otherWs = isIntra
+            ? (workspaceNames[t.sourceWorkspaceId] ?? '')
+            : isOut
+                ? (workspaceNames[t.destinationWorkspaceId] ?? 'Other Profile')
+                : (workspaceNames[t.sourceWorkspaceId] ?? 'Other Profile');
+
+        final String displayName;
+        if (isIntra) {
+          displayName = 'Self-Transfer';
+        } else if (isOut) {
+          displayName = 'Transfer to $otherWs';
+        } else {
+          displayName = 'Transfer from $otherWs';
+        }
+
+        transferEntries.add(
+          TransferEntry(
+            id: t.id,
+            date: t.date,
+            amount: t.amountPaise,
+            displayName: displayName,
+            category: 'Transfer',
+            notes: t.note,
+            rawTransfer: t,
+            direction: direction,
+            sourceAccountName: srcAcc,
+            destinationAccountName: destAcc,
+            otherWorkspaceName: otherWs,
+          ),
+        );
+      }
+    }
+
+    // Ensure planned entries and transfer entries are sorted descending by date for the K-way merge
+    plannedEntries.sort((a, b) => b.date.compareTo(a.date));
+    transferEntries.sort((a, b) => b.date.compareTo(a.date));
+
     // 2. K-way merge (since sources are pre-sorted descending)
     final List<TransactionEntry> merged = [];
-    int iExp = 0, iInc = 0, iPln = 0;
+    int iExp = 0, iInc = 0, iPln = 0, iTrf = 0;
 
     while (iExp < expenseEntries.length ||
         iInc < incomeEntries.length ||
-        iPln < plannedEntries.length) {
+        iPln < plannedEntries.length ||
+        iTrf < transferEntries.length) {
       TransactionEntry? best;
-      int source = -1; // 0: exp, 1: inc, 2: pln
+      int source = -1; // 0: exp, 1: inc, 2: pln, 3: trf
 
       if (iExp < expenseEntries.length) {
         best = expenseEntries[iExp];
@@ -152,6 +224,13 @@ class ActivityService {
         }
       }
 
+      if (iTrf < transferEntries.length) {
+        if (best == null || transferEntries[iTrf].date.isAfter(best.date)) {
+          best = transferEntries[iTrf];
+          source = 3;
+        }
+      }
+
       if (best != null) {
         merged.add(best);
         if (source == 0) {
@@ -160,6 +239,8 @@ class ActivityService {
           iInc++;
         } else if (source == 2) {
           iPln++;
+        } else if (source == 3) {
+          iTrf++;
         }
       }
     }
@@ -411,5 +492,45 @@ class ActivityService {
     }
     const daysInMonths = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     return daysInMonths[month];
+  }
+
+  List<Transfer> _filterTransfers(List<Transfer> transfers, FilterCriteria criteria) {
+    return transfers.where((t) {
+      if (criteria.date != null) {
+        final d = criteria.date!;
+        final startOfDay = DateTime(d.year, d.month, d.day);
+        final endOfDay = DateTime(d.year, d.month, d.day, 23, 59, 59);
+        if (t.date.isBefore(startOfDay) || t.date.isAfter(endOfDay)) {
+          return false;
+        }
+      }
+      if (criteria.dateRange != null) {
+        final start = DateTime(
+          criteria.dateRange!.start.year,
+          criteria.dateRange!.start.month,
+          criteria.dateRange!.start.day,
+        );
+        final end = DateTime(
+          criteria.dateRange!.end.year,
+          criteria.dateRange!.end.month,
+          criteria.dateRange!.end.day,
+          23,
+          59,
+          59,
+        );
+        if (t.date.isBefore(start) || t.date.isAfter(end)) {
+          return false;
+        }
+      }
+      if (criteria.searchQuery.isNotEmpty) {
+        final q = criteria.searchQuery.toLowerCase();
+        final matchNote = t.note?.toLowerCase().contains(q) ?? false;
+        final matchCategory = 'transfer'.contains(q) || 'self-transfer'.contains(q);
+        if (!matchNote && !matchCategory) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
   }
 }

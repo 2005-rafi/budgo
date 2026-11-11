@@ -1,18 +1,26 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AlertThrottleService {
-  final SharedPreferences _prefs;
+  SharedPreferences? _prefs;
 
-  AlertThrottleService(this._prefs);
+  AlertThrottleService([this._prefs]);
+
+  void attachPrefs(SharedPreferences prefs) {
+    _prefs = prefs;
+  }
 
   bool shouldFireBudgetAlert() {
-    final lastFiredDay = _prefs.getInt('kLastBudgetAlertDay') ?? 0;
+    final prefs = _prefs;
+    if (prefs == null) return false;
+    final lastFiredDay = prefs.getInt('kLastBudgetAlertDay') ?? 0;
     final today = DateTime.now().difference(DateTime(2000, 1, 1)).inDays;
     return today > lastFiredDay;
   }
 
   void markBudgetAlertFired() {
+    final prefs = _prefs;
+    if (prefs == null) return;
     final today = DateTime.now().difference(DateTime(2000, 1, 1)).inDays;
-    _prefs.setInt('kLastBudgetAlertDay', today);
+    prefs.setInt('kLastBudgetAlertDay', today);
   }
 }

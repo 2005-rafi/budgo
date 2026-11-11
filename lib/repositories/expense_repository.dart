@@ -1,8 +1,9 @@
 import 'dart:math';
 import 'package:hive/hive.dart';
-import '../core/app_exception.dart';
-import '../models/expense.dart';
-import '../core/atomic_writer.dart';
+import 'package:expense/core/constants/app_constants.dart';
+import 'package:expense/core/errors/app_exception.dart';
+import 'package:expense/models/expense.dart';
+import 'package:expense/core/storage/atomic_writer.dart';
 
 /// Repository interface for managing [Expense] records.
 abstract class ExpenseRepository {
@@ -53,16 +54,120 @@ abstract class ExpenseRepository {
 
   /// Retrieves a page of non-archived expenses.
   Future<List<Expense>> getPage(int offset, int limit);
+
+  /// Queries expenses scoped by optional [workspaceIds] and [includeArchived] flag.
+  Future<List<Expense>> getRangeScoped({
+    required DateTime from,
+    required DateTime to,
+    Set<String>? workspaceIds,
+    bool includeArchived = false,
+  });
+
+  /// Archives matching expenses in batched chunks via `putAll` for low WAL overhead.
+  Future<int> batchArchiveWhere(
+    bool Function(Expense) predicate, {
+    int chunkSize = 500,
+    void Function(double progress)? onProgress,
+    bool Function()? isCancelled,
+  });
 }
 
 /// Hive implementation of [ExpenseRepository].
 class HiveExpenseRepository implements ExpenseRepository {
-  final Box<Expense> _box;
+  final Box<Expense>? _injectedBox;
 
-  HiveExpenseRepository(this._box);
+  HiveExpenseRepository([this._injectedBox]);
+
+  Box<Expense> get _box =>
+      _injectedBox ?? Hive.box<Expense>(AppConstants.kExpensesBox);
 
   @override
   Stream<void> watch() => _box.watch();
+
+  String _normWs(String wsId) =>
+      wsId.isEmpty ? 'default_personal' : wsId;
+
+  @override
+  Future<List<Expense>> getRangeScoped({
+    required DateTime from,
+    required DateTime to,
+    Set<String>? workspaceIds,
+    bool includeArchived = false,
+  }) async {
+    try {
+      final start = DateTime(from.year, from.month, from.day);
+      final end = DateTime(to.year, to.month, to.day, 23, 59, 59, 999);
+      final normalizedIds = workspaceIds?.map(_normWs).toSet();
+
+      final list = _box.values.where((e) {
+        if (!includeArchived && e.isArchived) return false;
+        if (e.date.isBefore(start) || e.date.isAfter(end)) return false;
+        if (normalizedIds != null &&
+            !normalizedIds.contains(_normWs(e.workspaceId))) {
+          return false;
+        }
+        return true;
+      }).toList();
+
+      list.sort((a, b) => b.date.compareTo(a.date));
+      return list;
+    } catch (e) {
+      throw StorageException('Failed to query scoped expenses: $e');
+    }
+  }
+
+  @override
+  Future<int> batchArchiveWhere(
+    bool Function(Expense) predicate, {
+    int chunkSize = 500,
+    void Function(double progress)? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    return await AtomicWriter.instance.execute(() async {
+      try {
+        final Map<dynamic, Expense> matches = {};
+        for (final entry in _box.toMap().entries) {
+          final exp = entry.value;
+          if (!exp.isArchived && predicate(exp)) {
+            matches[entry.key] = exp;
+          }
+        }
+
+        final total = matches.length;
+        if (total == 0) {
+          onProgress?.call(1.0);
+          return 0;
+        }
+
+        final keys = matches.keys.toList();
+        int processed = 0;
+
+        for (int i = 0; i < total; i += chunkSize) {
+          if (isCancelled?.call() == true) break;
+          final end = min(i + chunkSize, total);
+          final chunkMap = <dynamic, Expense>{};
+          for (int j = i; j < end; j++) {
+            final k = keys[j];
+            final exp = matches[k]!;
+            exp.isArchived = true;
+            chunkMap[k] = exp;
+          }
+          await _box.putAll(chunkMap);
+          processed += chunkMap.length;
+          onProgress?.call(processed / total);
+          await Future.delayed(Duration.zero);
+        }
+
+        await _box.flush();
+        if (processed >= 200) {
+          await _box.compact();
+        }
+        return processed;
+      } catch (e) {
+        throw StorageException('Failed to archive expenses: $e');
+      }
+    });
+  }
 
   @override
   Future<List<Expense>> getPage(int offset, int limit) async {

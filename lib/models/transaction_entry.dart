@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:expense/models/expense.dart';
 import 'package:expense/models/income.dart';
 import 'package:expense/models/future_expense.dart';
+import 'package:expense/models/transfer.dart';
 
 @immutable
 sealed class TransactionEntry {
@@ -69,3 +70,36 @@ class PlannedEntry extends TransactionEntry {
     required this.rawFuture,
   });
 }
+
+enum TransferDirection {
+  intraWorkspace,
+  outgoing,
+  incoming,
+}
+
+class TransferEntry extends TransactionEntry {
+  final Transfer rawTransfer;
+  final TransferDirection direction;
+  final String sourceAccountName;
+  final String destinationAccountName;
+  final String otherWorkspaceName;
+
+  const TransferEntry({
+    required super.id,
+    required super.date,
+    required super.amount,
+    required super.displayName,
+    required super.category,
+    super.notes,
+    required this.rawTransfer,
+    required this.direction,
+    required this.sourceAccountName,
+    required this.destinationAccountName,
+    required this.otherWorkspaceName,
+  });
+
+  bool get isOutgoing => direction == TransferDirection.outgoing;
+  bool get isIncoming => direction == TransferDirection.incoming;
+  bool get isIntraWorkspace => direction == TransferDirection.intraWorkspace;
+}
+

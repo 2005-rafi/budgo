@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
-import 'package:expense/core/money.dart';
+import 'package:expense/core/currency/currency_formatter.dart';
 
 part 'reminder.g.dart';
 
@@ -172,6 +172,9 @@ class Reminder extends HiveObject {
   @HiveField(12, defaultValue: 'pending')
   String paymentStatus; // 'pending', 'completed', 'overdue'
 
+  @HiveField(13, defaultValue: 'default_personal')
+  String workspaceId;
+
   Reminder({
     required this.id,
     required this.title,
@@ -186,6 +189,7 @@ class Reminder extends HiveObject {
     this.amount,
     this.category,
     this.paymentStatus = 'pending',
+    this.workspaceId = 'default_personal',
   });
 
   RecurrenceRule? get recurrenceRule {

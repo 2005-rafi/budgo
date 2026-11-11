@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:expense/models/reminder.dart';
-import 'package:expense/provider/reminder_provider.dart';
+import 'package:expense/providers/reminder_provider.dart';
 import 'package:expense/repositories/reminder_repository.dart';
 import 'package:expense/services/notification_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -43,9 +43,19 @@ class FakeReminderRepository implements ReminderRepository {
 class FakeNotificationService implements NotificationService {
   final List<int> cancelled = [];
   final List<int> scheduled = [];
+  int? lastScheduledAmount;
+  String? lastScheduledCategory;
+  String? lastScheduledNotes;
+  WorkspaceNotificationMeta? lastScheduledWorkspace;
 
   @override
   Future<void> initialize() async {}
+
+  @override
+  Future<void> initializeForBackground() async {}
+
+  @override
+  Future<NotificationResponse?> getLaunchNotificationResponse() async => null;
 
   @override
   Future<bool> scheduleReminder({
@@ -56,8 +66,16 @@ class FakeNotificationService implements NotificationService {
     String recurrence = 'none',
     RecurrenceRule? recurrenceRule,
     String? payload,
+    int? amount,
+    String? category,
+    String? notes,
+    WorkspaceNotificationMeta? workspace,
   }) async {
     scheduled.add(id);
+    lastScheduledAmount = amount;
+    lastScheduledCategory = category;
+    lastScheduledNotes = notes;
+    lastScheduledWorkspace = workspace;
     return true;
   }
 
@@ -220,5 +238,140 @@ void main() {
     expect(provider.items.first.scheduledAt.isAfter(originalTime), true);
     expect(notif.cancelled.contains(reminder.notificationId), true);
     expect(notif.scheduled.contains(reminder.notificationId), true);
+  });
+
+  test('skipReminder marks one-time reminder skipped and cancels OS notification', () async {
+    final repo = FakeReminderRepository();
+    final notif = FakeNotificationService();
+    final provider = ReminderProvider(repo, notif);
+    final reminder = Reminder(
+      id: '7',
+      title: 'Dentist Visit',
+      scheduledAt: DateTime.now().add(const Duration(hours: 2)),
+      isRecurring: false,
+      recurrenceType: 'none',
+      isActive: true,
+      paymentStatus: 'pending',
+    );
+    await provider.addReminder(reminder);
+    notif.scheduled.clear();
+
+    final result = await provider.skipReminder(reminder);
+    expect(result, true);
+    expect(provider.items.first.isActive, false);
+    expect(provider.items.first.paymentStatus, 'skipped');
+    expect(notif.cancelled.contains(reminder.notificationId), true);
+    expect(notif.scheduled.isEmpty, true);
+  });
+
+  test('skipReminder advances recurring reminder strictly to next cycle', () async {
+    final repo = FakeReminderRepository();
+    final notif = FakeNotificationService();
+    final provider = ReminderProvider(repo, notif);
+    final futureSlot = DateTime.now().add(const Duration(hours: 2));
+    final reminder = Reminder(
+      id: '8',
+      title: 'Gym SIP',
+      amount: 150000,
+      category: 'Health',
+      notes: 'Monthly auto debit',
+      scheduledAt: futureSlot,
+      isRecurring: true,
+      recurrenceType: 'daily',
+      isActive: true,
+      paymentStatus: 'pending',
+    );
+    await provider.addReminder(reminder);
+    notif.scheduled.clear();
+
+    final result = await provider.skipReminder(reminder);
+    expect(result, true);
+    expect(provider.items.first.isActive, true);
+    expect(provider.items.first.paymentStatus, 'pending');
+    expect(provider.items.first.scheduledAt.isAfter(futureSlot), true);
+    expect(notif.cancelled.contains(reminder.notificationId), true);
+    expect(notif.scheduled.contains(reminder.notificationId), true);
+    expect(notif.lastScheduledAmount, 150000);
+    expect(notif.lastScheduledCategory, 'Health');
+    expect(notif.lastScheduledNotes, 'Monthly auto debit');
+  });
+
+  test('cancelReminderFromNotification deactivates reminder and sets cancelled status', () async {
+    final repo = FakeReminderRepository();
+    final notif = FakeNotificationService();
+    final provider = ReminderProvider(repo, notif);
+    final reminder = Reminder(
+      id: '9',
+      title: 'Broadband Bill',
+      scheduledAt: DateTime.now().add(const Duration(days: 1)),
+      isRecurring: true,
+      recurrenceType: 'monthly',
+      isActive: true,
+      paymentStatus: 'pending',
+    );
+    await provider.addReminder(reminder);
+    notif.scheduled.clear();
+
+    final result = await provider.cancelReminderFromNotification(reminder);
+    expect(result, true);
+    expect(provider.items.first.isActive, false);
+    expect(provider.items.first.paymentStatus, 'cancelled');
+    expect(notif.cancelled.contains(reminder.notificationId), true);
+    expect(notif.scheduled.isEmpty, true);
+  });
+
+  test('ReminderProvider isolates items by activeWorkspaceId and attaches workspace metadata', () async {
+    final repo = FakeReminderRepository();
+    final notif = FakeNotificationService();
+    final provider = ReminderProvider(repo, notif)
+      ..workspaceResolver = (wsId) {
+        if (wsId == 'ws_business') {
+          return const WorkspaceNotificationMeta(
+            workspaceId: 'ws_business',
+            workspaceName: 'Business',
+            workspaceTypeLabel: 'Business',
+            colorValue: 0xFF607D8B,
+          );
+        }
+        return const WorkspaceNotificationMeta(
+          workspaceId: 'default_personal',
+          workspaceName: 'Personal',
+          workspaceTypeLabel: 'Personal',
+          colorValue: 0xFF2196F3,
+        );
+      };
+
+    final personalRem = Reminder(
+      id: 'ws_p_1',
+      title: 'Home Rent',
+      scheduledAt: DateTime.now().add(const Duration(days: 1)),
+      workspaceId: 'default_personal',
+    );
+    final businessRem = Reminder(
+      id: 'ws_b_1',
+      title: 'Server Invoice',
+      scheduledAt: DateTime.now().add(const Duration(days: 2)),
+      workspaceId: 'ws_business',
+    );
+
+    await provider.addReminder(personalRem);
+    expect(notif.lastScheduledWorkspace?.workspaceName, 'Personal');
+
+    await provider.addReminder(businessRem);
+    expect(notif.lastScheduledWorkspace?.workspaceName, 'Business');
+    expect(notif.lastScheduledWorkspace?.colorValue, 0xFF607D8B);
+
+    // Default active workspace only exposes personalRem while allItems sees both
+    expect(provider.items.map((r) => r.id).toList(), ['ws_p_1']);
+    expect(provider.allItems.length, 2);
+
+    // Switching workspace isolates items strictly to Business
+    provider.setActiveWorkspace('ws_business');
+    expect(provider.items.map((r) => r.id).toList(), ['ws_b_1']);
+
+    // Resyncing after workspace rename/style change updates OS schedules
+    notif.scheduled.clear();
+    await provider.syncWorkspaceNotificationStyles('ws_business');
+    expect(notif.scheduled, contains(businessRem.notificationId));
   });
 }

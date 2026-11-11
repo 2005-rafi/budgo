@@ -1,6 +1,8 @@
 import 'package:hive/hive.dart';
-import '../core/app_exception.dart';
-import '../models/future_expense.dart';
+import 'package:expense/core/errors/app_exception.dart';
+import 'package:expense/models/future_expense.dart';
+import 'package:expense/core/storage/atomic_writer.dart';
+import 'package:expense/core/constants/app_constants.dart';
 
 /// Repository interface for managing planned/wishlist [FutureExpense] records.
 abstract class FutureExpenseRepository {
@@ -36,9 +38,12 @@ abstract class FutureExpenseRepository {
 
 /// Hive implementation of [FutureExpenseRepository].
 class HiveFutureExpenseRepository implements FutureExpenseRepository {
-  Box<FutureExpense> get _box => Hive.box<FutureExpense>('future_expenses');
+  final Box<FutureExpense>? _injectedBox;
 
-  HiveFutureExpenseRepository();
+  HiveFutureExpenseRepository([this._injectedBox]);
+
+  Box<FutureExpense> get _box =>
+      _injectedBox ?? Hive.box<FutureExpense>(AppConstants.kFutureExpensesBox);
 
   @override
   Stream<void> watch() => _box.watch();
@@ -66,59 +71,71 @@ class HiveFutureExpenseRepository implements FutureExpenseRepository {
 
   @override
   Future<void> add(FutureExpense item) async {
-    try {
-      await _box.add(item);
-      await _box.flush();
-    } catch (e) {
-      throw StorageException('Failed to add future expense: $e');
-    }
+    await AtomicWriter.instance.execute(() async {
+      try {
+        await _box.add(item);
+        await _box.flush();
+      } catch (e) {
+        throw StorageException('Failed to add future expense: $e');
+      }
+    });
   }
 
   @override
   Future<void> update(FutureExpense item) async {
-    try {
-      if (item.isInBox) {
-        await item.save();
-        await _box.flush();
-      } else {
-        throw StorageException('Item is not in the box to be updated.');
+    await AtomicWriter.instance.execute(() async {
+      try {
+        if (item.isInBox) {
+          await item.save();
+          await _box.flush();
+        } else {
+          throw NotFoundException(
+            'Wishlist item could not be found.',
+            entityType: 'wishlist item',
+          );
+        }
+      } catch (e) {
+        if (e is AppException) rethrow;
+        throw StorageException('Failed to update future expense: $e');
       }
-    } catch (e) {
-      throw StorageException('Failed to update future expense: $e');
-    }
+    });
   }
 
   @override
   Future<void> delete(FutureExpense item) async {
-    try {
-      if (item.isInBox) {
-        await item.delete();
-        await _box.flush();
+    await AtomicWriter.instance.execute(() async {
+      try {
+        if (item.isInBox) {
+          await item.delete();
+          await _box.flush();
+        }
+      } catch (e) {
+        throw StorageException('Failed to delete future expense: $e');
       }
-    } catch (e) {
-      throw StorageException('Failed to delete future expense: $e');
-    }
+    });
   }
 
   @override
   Future<void> resetAllLinkedStates() async {
-    try {
-      bool modified = false;
-      for (final item in _box.values) {
-        if (item.isPurchased) {
-          item.isPurchased = false;
-          item.linkedExpenseKey = null;
-          item.purchasedAmount = null;
-          item.purchasedAt = null;
-          await item.save();
-          modified = true;
+    await AtomicWriter.instance.execute(() async {
+      try {
+        bool modified = false;
+        for (final item in _box.values) {
+          if (item.isPurchased) {
+            item.isPurchased = false;
+            item.linkedExpenseKey = null;
+            item.purchasedAmount = null;
+            item.purchasedAt = null;
+            await item.save();
+            modified = true;
+          }
         }
+        if (modified) {
+          await _box.flush();
+        }
+      } catch (e) {
+        throw StorageException('Failed to reset linked states: $e');
       }
-      if (modified) {
-        await _box.flush();
-      }
-    } catch (e) {
-      throw StorageException('Failed to reset linked states: $e');
-    }
+    });
   }
 }
