@@ -1,29 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:expense/core/app_spacing.dart';
-import 'package:expense/core/app_radius.dart';
-import 'package:expense/provider/app_preferences_provider.dart';
-import 'package:expense/provider/dashboard_provider.dart';
-import 'package:expense/provider/app_navigation_provider.dart';
-import 'package:expense/provider/expenses_provider.dart';
-import 'package:expense/provider/income_provider.dart';
-import 'package:expense/provider/future_expenses_provider.dart';
-import 'package:expense/provider/reminder_provider.dart';
+import 'package:expense/core/errors/app_error_translator.dart';
+import 'package:expense/design/budgo_ui.dart';
+import 'package:expense/providers/app_preferences_provider.dart';
+import 'package:expense/providers/dashboard_provider.dart';
+import 'package:expense/providers/app_navigation_provider.dart';
+import 'package:expense/providers/expenses_provider.dart';
+import 'package:expense/providers/income_provider.dart';
+import 'package:expense/providers/future_expenses_provider.dart';
+import 'package:expense/providers/reminder_provider.dart';
+import 'package:expense/providers/transfer_provider.dart';
 import 'package:expense/models/transaction_entry.dart';
 import 'package:expense/models/view_models/dashboard_view_model.dart';
-import 'package:expense/core/money.dart';
+import 'package:expense/core/currency/currency_formatter.dart';
 
-import 'package:expense/widgets/common/app_budget_card.dart';
-import 'package:expense/widgets/common/app_section_header.dart';
-import 'package:expense/widgets/common/app_card.dart';
-import 'package:expense/widgets/common/reminder_action_badge.dart';
-import 'package:expense/widgets/forms/transaction_bottom_sheet.dart';
-import 'package:expense/widgets/forms/budget_setup_sheet.dart';
+import 'package:expense/widgets/home/app_budget_card.dart';
+import 'package:expense/widgets/home/reminder_action_badge.dart';
+import 'package:expense/widgets/sheets/transaction_bottom_sheet.dart';
+import 'package:expense/widgets/sheets/budget_setup_sheet.dart';
 import 'package:expense/widgets/home/recent_activity_list.dart';
+import 'package:expense/widgets/home/credit_card_due_banner.dart';
+import 'package:expense/widgets/home/pay_yourself_first_card.dart';
 
-import 'package:expense/widgets/confirmation_dialog.dart';
-import 'package:expense/widgets/snackbar_feedback.dart';
+import 'package:expense/widgets/home/workspace_switcher_pill.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -55,19 +55,24 @@ class _HomeScreenState extends State<HomeScreen> {
             'Found an incomplete purchase for "${item.title}". Would you like to complete it or discard the expense?',
           ),
           actions: [
-            TextButton(
+            BudgoButton(
+              label: 'Discard Expense',
+              variant: BudgoButtonVariant.text,
+              expanded: false,
+              height: 42,
               onPressed: () {
                 Navigator.pop(ctx);
                 context.read<FutureExpensesProvider>().resolveOrphan(false);
               },
-              child: const Text('Discard Expense'),
             ),
-            ElevatedButton(
+            BudgoButton(
+              label: 'Complete Purchase',
+              expanded: false,
+              height: 42,
               onPressed: () {
                 Navigator.pop(ctx);
                 context.read<FutureExpensesProvider>().resolveOrphan(true);
               },
-              child: const Text('Complete Purchase'),
             ),
           ],
         ),
@@ -108,6 +113,11 @@ class _HomeScreenState extends State<HomeScreen> {
           await context.read<FutureExpensesProvider>().deleteFutureExpense(
             entry.rawFuture,
           );
+        } else if (entry is TransferEntry) {
+          await context.read<TransferProvider>().reverseTransfer(
+            entry.id,
+            reason: 'Deleted by user from activity',
+          );
         }
         if (context.mounted) {
           SnackbarFeedback.showSuccess(
@@ -119,7 +129,10 @@ class _HomeScreenState extends State<HomeScreen> {
         if (context.mounted) {
           SnackbarFeedback.showError(
             context,
-            'Failed to delete transaction: $e',
+            e,
+            operation: entry is TransferEntry
+                ? FeedbackOperation.selfTransfer
+                : FeedbackOperation.deleteTransaction,
           );
         }
       }
@@ -134,7 +147,11 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       if (context.mounted) {
-        SnackbarFeedback.showError(context, 'Failed to confirm income: $e');
+        SnackbarFeedback.showError(
+          context,
+          e,
+          operation: FeedbackOperation.confirmIncome,
+        );
       }
     }
   }
@@ -160,19 +177,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
                   // Zone 1 — Sticky App Bar
-                  SliverAppBar(
-                    floating: true,
-                    snap: true,
-                    backgroundColor: colorScheme.surface,
-                    title: Text(
-                      'Budgo',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                  BudgoSliverAppBar(
+                    title: AppBrand.appName,
                     actions: const [
+                      WorkspaceSwitcherPill(),
+                      SizedBox(width: AppSpacing.xs),
                       ReminderActionBadge(),
-                      SizedBox(width: AppSpacing.sm),
                     ],
                   ),
 
@@ -221,7 +231,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             spent: vm.spentThisMonth,
                             income: vm.incomeThisMonth,
                             isBudgetEnabled: isBudgetEnabled,
-                            balance: vm.cashflowBalance,
+                            balance: vm.totalBalance,
+                            safeToSpend: vm.safeToSpend,
+                            totalVaultsAllocated: vm.totalVaultsAllocated,
                             onSetBudget: () {
                               if (isBudgetEnabled) {
                                 BudgetSetupSheet.show(context);
@@ -254,7 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Container(
                             decoration: BoxDecoration(
                               color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
                               border: Border.all(
                                 color: Theme.of(context).colorScheme.error.withValues(alpha: 0.3),
                                 width: 1,
@@ -288,9 +300,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   return Card(
                                     elevation: 0,
                                     color: Theme.of(context).colorScheme.surface,
-                                    margin: const EdgeInsets.symmetric(vertical: 4),
+                                    margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(AppRadius.md),
                                       side: BorderSide(
                                         color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3),
                                       ),
@@ -323,8 +335,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                           IconButton.filledTonal(
                                             onPressed: () async {
                                               final success = await reminderProvider.markAsPaid(reminder);
-                                              if (success && context.mounted) {
+                                              if (!context.mounted) return;
+                                              if (success) {
                                                 SnackbarFeedback.showSuccess(context, 'Marked as paid');
+                                              } else {
+                                                SnackbarFeedback.showError(
+                                                  context,
+                                                  reminderProvider.lastError ?? reminderProvider.errorMessage ?? 'Unable to update reminder.',
+                                                  operation: FeedbackOperation.toggleReminder,
+                                                );
                                               }
                                             },
                                             icon: const Icon(Icons.check, size: 18),
@@ -337,8 +356,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                           IconButton.filledTonal(
                                             onPressed: () async {
                                               final success = await reminderProvider.remindLater(reminder);
-                                              if (success && context.mounted) {
+                                              if (!context.mounted) return;
+                                              if (success) {
                                                 SnackbarFeedback.showSuccess(context, 'Postponed by 6 hours');
+                                              } else {
+                                                SnackbarFeedback.showError(
+                                                  context,
+                                                  reminderProvider.lastError ?? reminderProvider.errorMessage ?? 'Unable to postpone reminder.',
+                                                  operation: FeedbackOperation.toggleReminder,
+                                                );
                                               }
                                             },
                                             icon: const Icon(Icons.snooze, size: 18),
@@ -357,6 +383,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
+
+                  // Zone 3.6 — Credit Card Due & Pay-Yourself-First Banners
+                  const SliverToBoxAdapter(child: CreditCardDueBanner()),
+                  const SliverToBoxAdapter(child: PayYourselfFirstCard()),
 
                   // Zone 4 — Onboarding or Recent Activity
                   if (isEmpty) ...[
@@ -416,7 +446,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: AppSpacing.md),
                             AppCard(
                               onTap: () {
-                                Navigator.pushNamed(context, '/income');
+                                TransactionBottomSheet.show(context, mode: TransactionMode.income);
                               },
                               child: Row(
                                 children: [

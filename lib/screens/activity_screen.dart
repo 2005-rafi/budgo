@@ -1,25 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:expense/core/app_layout.dart';
-import 'package:expense/core/app_radius.dart';
-import 'package:expense/core/app_spacing.dart';
+import 'package:expense/core/errors/app_error_translator.dart';
+import 'package:expense/design/budgo_ui.dart';
+import 'package:expense/core/currency/currency_formatter.dart';
 import 'package:expense/models/filter_criteria.dart';
 import 'package:expense/models/timeline_group.dart';
 import 'package:expense/models/transaction_entry.dart';
-import 'package:expense/provider/activity_provider.dart';
-import 'package:expense/provider/expenses_provider.dart';
-import 'package:expense/provider/future_expenses_provider.dart';
-import 'package:expense/provider/income_provider.dart';
+import 'package:expense/providers/activity_provider.dart';
+import 'package:expense/providers/app_navigation_provider.dart';
+import 'package:expense/providers/expenses_provider.dart';
+import 'package:expense/providers/future_expenses_provider.dart';
+import 'package:expense/providers/income_provider.dart';
+import 'package:expense/providers/transfer_provider.dart';
 
-import 'package:expense/widgets/common/app_transaction_tile.dart';
-import 'package:expense/widgets/common/app_filter_chip.dart';
-import 'package:expense/widgets/common/app_section_header.dart';
-import 'package:expense/widgets/common/reminder_action_badge.dart';
-
-import 'package:expense/widgets/confirmation_dialog.dart';
-import 'package:expense/widgets/forms/transaction_detail_sheet.dart';
-import 'package:expense/widgets/snackbar_feedback.dart';
+import 'package:expense/widgets/tiles/app_transaction_tile.dart';
+import 'package:expense/widgets/home/reminder_action_badge.dart';
+import 'package:expense/widgets/sheets/transaction_detail_sheet.dart';
 
 class ActivityScreen extends StatefulWidget {
   const ActivityScreen({super.key});
@@ -36,6 +33,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   final int _pageSize = 50;
   int _currentPage = 1;
   bool _isInitialized = false;
+  AppNavigationProvider? _navProvider;
 
   @override
   void initState() {
@@ -44,11 +42,30 @@ class _ActivityScreenState extends State<ActivityScreen> {
     _scrollController.addListener(_onScroll);
   }
 
+  void _onNavChanged() {
+    final pending = _navProvider?.consumePendingActivityCriteria();
+    if (pending != null && mounted) {
+      setState(() {
+        _criteria = pending;
+        _currentPage = 1;
+        _searchController.text = pending.searchQuery;
+      });
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final nav = Provider.of<AppNavigationProvider?>(context, listen: false);
+    if (_navProvider != nav) {
+      _navProvider?.removeListener(_onNavChanged);
+      _navProvider = nav;
+      _navProvider?.addListener(_onNavChanged);
+    }
+
     if (!_isInitialized) {
-      final args = ModalRoute.of(context)?.settings.arguments;
+      final handed = _navProvider?.consumePendingActivityCriteria();
+      final args = handed ?? ModalRoute.of(context)?.settings.arguments;
       if (args is FilterCriteria) {
         _criteria = args;
         if (_criteria.searchQuery.isNotEmpty) {
@@ -61,6 +78,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
   @override
   void dispose() {
+    _navProvider?.removeListener(_onNavChanged);
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -87,14 +105,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 
   void _showFilterSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
+    BudgoBottomSheet.show(
+      context,
       builder: (ctx) {
         return _FilterBottomSheetContent(
           initialCriteria: _criteria,
@@ -154,6 +166,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
           await context.read<FutureExpensesProvider>().deleteFutureExpense(
             entry.rawFuture,
           );
+        } else if (entry is TransferEntry) {
+          await context.read<TransferProvider>().reverseTransfer(
+            entry.id,
+            reason: 'Deleted by user from activity timeline',
+          );
         }
         if (context.mounted) {
           SnackbarFeedback.showSuccess(
@@ -165,7 +182,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
         if (context.mounted) {
           SnackbarFeedback.showError(
             context,
-            'Failed to delete transaction: $e',
+            e,
+            operation: entry is TransferEntry
+                ? FeedbackOperation.selfTransfer
+                : FeedbackOperation.deleteTransaction,
           );
         }
       }
@@ -180,7 +200,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
       }
     } catch (e) {
       if (context.mounted) {
-        SnackbarFeedback.showError(context, 'Failed to confirm income: $e');
+        SnackbarFeedback.showError(
+          context,
+          e,
+          operation: FeedbackOperation.confirmIncome,
+        );
       }
     }
   }
@@ -191,14 +215,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Activity'),
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        elevation: 0,
-        actions: const [
+      appBar: const BudgoAppBar(
+        title: 'Activity',
+        actions: [
           ReminderActionBadge(),
-          SizedBox(width: AppSpacing.sm),
         ],
       ),
       body: SafeArea(
@@ -206,24 +226,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
         right: true,
         top: false,
         bottom: false,
-        child: Selector4<
-            ActivityProvider,
-            ExpensesProvider,
-            IncomeProvider,
-            FutureExpensesProvider,
-            (List<TimelineGroup>, bool)
-        >(
-          selector: (ctx, ap, ep, ip, fep) {
-            final filteredExpenses = ap.filtered(ep.allExpenses, _criteria);
-            final groups = ap.service.buildTimeline(
-              filteredExpenses: filteredExpenses,
-              allIncomes: ip.items,
-              allFutureExpenses: fep.items,
-              criteria: _criteria,
-            );
-            
-            final isLoading = ep.isLoading || ip.isLoading || fep.isLoading;
-            return (groups, isLoading);
+        child: Selector<ActivityProvider, (List<TimelineGroup>, bool)>(
+          selector: (ctx, ap) {
+            final groups = ap.getTimelineForCriteria(_criteria);
+            return (groups, ap.isLoading);
           },
           builder: (context, data, _) {
             final groups = data.$1;
@@ -340,7 +346,24 @@ class _ActivityScreenState extends State<ActivityScreen> {
                       // Sticky Date Section Header
                       SliverPersistentHeader(
                         pinned: true,
-                        delegate: _StickyGroupHeaderDelegate(title: group.title),
+                        delegate: _StickyGroupHeaderDelegate(
+                          title: group.title,
+                          totalNet: group.items.fold<int>(
+                            0,
+                            (sum, entry) {
+                              if (entry is ExpenseEntry) {
+                                return sum - entry.amount;
+                              } else if (entry is IncomeEntry) {
+                                return sum + entry.amount;
+                              } else if (entry is TransferEntry) {
+                                if (entry.isOutgoing) return sum - entry.amount;
+                                if (entry.isIncoming) return sum + entry.amount;
+                                return sum;
+                              }
+                              return sum;
+                            },
+                          ),
+                        ),
                       ),
                       // Group list
                       SliverPadding(
@@ -361,6 +384,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
                                   isIncome: entry is IncomeEntry,
                                   isPending: entry is IncomeEntry && !entry.isConfirmed,
                                   isPlanned: entry is PlannedEntry,
+                                  isTransfer: entry is TransferEntry,
+                                  isTransferOutgoing: entry is TransferEntry && entry.isOutgoing,
+                                  isTransferIntra: entry is TransferEntry && entry.isIntraWorkspace,
                                   onTap: () => TransactionDetailSheet.show(context, entry),
                                   onDelete: () => _handleDelete(context, entry),
                                   onConfirm: entry is IncomeEntry
@@ -505,8 +531,9 @@ class _SearchFilterHeaderDelegate extends SliverPersistentHeaderDelegate {
 
 class _StickyGroupHeaderDelegate extends SliverPersistentHeaderDelegate {
   final String title;
+  final int totalNet;
 
-  _StickyGroupHeaderDelegate({required this.title});
+  _StickyGroupHeaderDelegate({required this.title, required this.totalNet});
 
   @override
   Widget build(
@@ -516,19 +543,35 @@ class _StickyGroupHeaderDelegate extends SliverPersistentHeaderDelegate {
   ) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    
+    final bool isPositive = totalNet >= 0;
+    final String amountText = CurrencyFormatter.format(totalNet.abs());
+
     return Container(
       color: colorScheme.surface,
       height: 40.0,
-      alignment: Alignment.centerLeft,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.base,
       ),
-      child: Text(
-        title,
-        style: theme.textTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.bold,
-          color: colorScheme.onSurfaceVariant,
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          if (totalNet != 0)
+            Text(
+              amountText,
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: isPositive ? colorScheme.secondary : colorScheme.onSurfaceVariant,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -569,7 +612,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
 
   void _toggleFilter(String filter) {
     final activeCategories = Set<String>.from(_localCriteria.categories);
-    final row1Items = {'Income', 'Rent', 'Food', 'Entertainment', 'Shopping', 'Travel', 'Lend/Borrow', 'Other'};
+    final row1Items = {'Income', 'Transfer', 'Rent', 'Food', 'Entertainment', 'Shopping', 'Travel', 'Lend/Borrow', 'Other'};
     final row2Items = {'Today', 'This Week', 'This Month'};
 
     if (filter == 'All') {
@@ -594,6 +637,18 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
       } else {
         activeCategories.add('High Spend');
       }
+    } else if (filter == 'Cash' || filter == 'UPI') {
+      if (_localCriteria.paymentMethod == filter) {
+        setState(() {
+          _localCriteria = _localCriteria.copyWith(paymentMethod: '');
+        });
+      } else {
+        setState(() {
+          _localCriteria = _localCriteria.copyWith(paymentMethod: filter);
+        });
+      }
+      // Return early because paymentMethod is a separate property, not in categories
+      return;
     }
 
     setState(() {
@@ -606,40 +661,34 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final row1List = ['All', 'Income', 'Rent', 'Food', 'Entertainment', 'Shopping', 'Travel', 'Lend/Borrow', 'Other'];
+    final row1List = ['All', 'Income', 'Transfer', 'Rent', 'Food', 'Entertainment', 'Shopping', 'Travel', 'Lend/Borrow', 'Other'];
     final row2List = ['Today', 'This Week', 'This Month'];
 
     final activeCats = _localCriteria.categories;
     final isAllSelected = !activeCats.any((c) => row1List.contains(c) && c != 'All');
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.base, 0, AppSpacing.base, AppSpacing.base),
+    return BudgoBottomSheet(
+      title: 'Filter Transactions',
+      trailing: TextButton(
+        onPressed: () {
+          setState(() {
+            _localCriteria = const FilterCriteria();
+          });
+        },
+        child: const Text('Clear All'),
+      ),
+      footer: BudgoButton(
+        label: 'Apply Filters',
+        onPressed: () {
+          widget.onApply(_localCriteria);
+          Navigator.pop(context);
+        },
+      ),
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Filter Transactions',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _localCriteria = const FilterCriteria();
-                    });
-                  },
-                  child: const Text('Clear All'),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            
             // Section 1: Tags
             Text(
               'Tags / Category',
@@ -651,10 +700,11 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
             const SizedBox(height: AppSpacing.sm),
             Wrap(
               spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
               children: row1List.map((chip) {
-                final isSelected = chip == 'All' ? isAllSelected : activeCats.contains(chip);
-                return AppFilterChip(
+                final isSelected =
+                    chip == 'All' ? isAllSelected : activeCats.contains(chip);
+                return BudgoChip(
                   label: chip,
                   selected: isSelected,
                   onSelected: (_) => _toggleFilter(chip),
@@ -674,10 +724,10 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
             const SizedBox(height: AppSpacing.sm),
             Wrap(
               spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
               children: row2List.map((chip) {
                 final isSelected = activeCats.contains(chip);
-                return AppFilterChip(
+                return BudgoChip(
                   label: chip,
                   selected: isSelected,
                   onSelected: (_) => _toggleFilter(chip),
@@ -697,24 +747,37 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
             const SizedBox(height: AppSpacing.sm),
             Wrap(
               spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
               children: [
-                AppFilterChip(
+                BudgoChip(
                   label: 'High Spend',
                   selected: activeCats.contains('High Spend'),
                   onSelected: (_) => _toggleFilter('High Spend'),
                 ),
               ],
             ),
-            const SizedBox(height: AppSpacing.xl),
+            const SizedBox(height: AppSpacing.lg),
 
-            // Confirm Button
-            FilledButton(
-              onPressed: () {
-                widget.onApply(_localCriteria);
-                Navigator.pop(context);
-              },
-              child: const Text('Apply Filters'),
+            // Section 4: Payment Method
+            Text(
+              'Payment Method',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              children: ['Cash', 'UPI'].map((method) {
+                final isSelected = _localCriteria.paymentMethod == method;
+                return BudgoChip(
+                  label: method,
+                  selected: isSelected,
+                  onSelected: (_) => _toggleFilter(method),
+                );
+              }).toList(),
             ),
           ],
         ),

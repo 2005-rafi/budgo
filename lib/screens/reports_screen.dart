@@ -1,26 +1,22 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
-import 'package:expense/models/reports_view_model.dart';
+import 'package:expense/models/view_models/reports_view_model.dart';
 import 'package:expense/models/filter_criteria.dart';
+import 'package:expense/models/workspace.dart';
 
-import 'package:expense/provider/reports_provider.dart';
-import 'package:expense/provider/app_navigation_provider.dart';
+import 'package:expense/providers/reports_provider.dart';
+import 'package:expense/providers/app_navigation_provider.dart';
+import 'package:expense/providers/workspace_provider.dart';
 
-import 'package:expense/services/report_export_service.dart';
-
-import 'package:expense/core/money.dart';
-import 'package:expense/core/app_layout.dart';
-import 'package:expense/core/app_text_styles.dart';
-import 'package:expense/core/app_spacing.dart';
+import 'package:expense/core/errors/app_error_translator.dart';
+import 'package:expense/core/currency/currency_formatter.dart';
+import 'package:expense/design/budgo_ui.dart';
+import 'package:expense/widgets/sheets/export_bottom_sheet.dart';
 
 import 'package:expense/widgets/charts/insight_line.dart';
-import 'package:expense/widgets/dashboard/calendar_heatmap.dart';
-import 'package:expense/widgets/empty_state_placeholder.dart';
+import 'package:expense/widgets/charts/calendar_heatmap.dart';
 import 'package:expense/widgets/charts/line_chart_widget.dart';
 import 'package:expense/widgets/charts/bar_chart_widget.dart';
 import 'package:expense/widgets/charts/pie_chart_widget.dart';
@@ -40,8 +36,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   DateTime _heatmapMonth = DateTime.now();
   bool _isYearlyHeatmap = false;
-  bool _isExporting = false;
-  double? _exportProgress;
 
   @override
   void initState() {
@@ -52,12 +46,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
-    // Use read to avoid rebuild during dispose
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        context.read<ReportsProvider>().clearRange();
-      }
-    });
     super.dispose();
   }
 
@@ -67,7 +55,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     ReportsRangePreset preset,
   ) {
     provider.setRange(newRange, preset);
-    // Task 4-C-4: Sync heatmap month with range
     setState(() {
       _heatmapMonth = DateTime(newRange.start.year, newRange.start.month, 1);
     });
@@ -85,159 +72,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
-  void _confirmExport(BuildContext context, ReportsProvider provider) {
-    final expenses = provider.rangeExpenses;
-    if (expenses.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('No expenses to export.')));
-      return;
+  Workspace? _tryActiveWorkspace(BuildContext context) {
+    try {
+      return context.watch<WorkspaceProvider>().activeWorkspace;
+    } on ProviderNotFoundException {
+      return null;
     }
-
-    showModalBottomSheet(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) {
-        final color = Theme.of(ctx).colorScheme;
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Export Data',
-                  style: Theme.of(
-                    ctx,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Exporting ${expenses.length} transaction(s) for the selected period.',
-                  style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                    color: color.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                ListTile(
-                  leading: const Icon(Icons.table_view_outlined),
-                  title: const Text('Export CSV'),
-                  subtitle: const Text('Generates a full spreadsheet file.'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _runCsvExport(provider);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.picture_as_pdf_outlined),
-                  title: const Text('Export PDF'),
-                  subtitle: Text(
-                    'Generates a formatted multi-page document (~${(expenses.length / 40).ceil()} pages).',
-                  ),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _runPdfExport(provider);
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _runCsvExport(ReportsProvider provider) async {
-    setState(() {
-      _isExporting = true;
-      _exportProgress = null;
-    });
-
-    final result = await ReportExportService.exportExpensesCsv(
-      expenses: provider.rangeExpenses,
-      range: provider.activeRange,
-    );
-
-    if (!mounted) return;
-    setState(() {
-      _isExporting = false;
-    });
-
-    if (result.isSuccess) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('CSV Export ready')));
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(result.value!.path)],
-          subject: 'Expenses CSV Export',
-        ),
-      );
-    } else {
-      _showExportError(result.error);
-    }
-  }
-
-  void _runPdfExport(ReportsProvider provider) async {
-    setState(() {
-      _isExporting = true;
-      _exportProgress = 0.0;
-    });
-
-    final title = 'Budgo Expenses Report';
-    final result = await ReportExportService.buildExpensesPdfBytes(
-      expenses: provider.rangeExpenses,
-      range: provider.activeRange,
-      title: title,
-      onProgress: (progress) {
-        if (mounted) {
-          setState(() {
-            _exportProgress = progress;
-          });
-        }
-      },
-    );
-
-    if (!mounted) return;
-    setState(() {
-      _isExporting = false;
-      _exportProgress = null;
-    });
-
-    if (result.isSuccess) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('PDF Export ready')));
-
-      final dateFmt = DateFormat('yyyyMMdd');
-      final fileBase =
-          'budgo_expenses_${dateFmt.format(provider.activeRange.start)}_${dateFmt.format(provider.activeRange.end)}_${DateTime.now().millisecondsSinceEpoch}';
-
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/$fileBase.pdf');
-      await tempFile.writeAsBytes(result.value!);
-
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(tempFile.path)],
-          subject: 'Expenses PDF Export',
-        ),
-      );
-    } else {
-      _showExportError(result.error);
-    }
-  }
-
-  void _showExportError(ExportError? error) {
-    if (error == null) return;
-    final message = error.message;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ),
-    );
   }
 
   void _navigateMonth(
@@ -265,68 +105,68 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = theme.colorScheme;
+    final activeWorkspace = _tryActiveWorkspace(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Reports'),
-        backgroundColor: color.surface,
-        foregroundColor: color.onSurface,
-        elevation: 0,
-        scrolledUnderElevation: 2,
-        actions: _isExporting
-            ? []
-            : [
-                IconButton(
-                  tooltip: 'Pick date range',
-                  icon: const Icon(Icons.date_range_outlined),
-                  onPressed: () =>
-                      _pickCustomRange(context.read<ReportsProvider>()),
-                ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  onSelected: (val) {
-                    if (val == 'export') {
-                      _confirmExport(context, context.read<ReportsProvider>());
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'export',
-                      child: Row(
-                        children: [
-                          Icon(Icons.download_outlined, size: 20),
-                          SizedBox(width: 8),
-                          Text('Export Data'),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+      appBar: BudgoAppBar(
+        title: 'Reports',
+        subtitle: activeWorkspace != null
+            ? '${activeWorkspace.name} • Isolated Analytics'
+            : null,
+        actions: [
+          IconButton(
+            tooltip: 'Pick date range',
+            icon: const Icon(Icons.date_range_outlined),
+            onPressed: () =>
+                _pickCustomRange(context.read<ReportsProvider>()),
+          ),
+          IconButton(
+            tooltip: 'Export data',
+            icon: const Icon(Icons.download_outlined),
+            onPressed: () {
+              final provider = context.read<ReportsProvider>();
+              ExportBottomSheet.show(
+                context,
+                initialRange: provider.activeRange,
+                initialWorkspaceId: activeWorkspace?.id ?? provider.activeWorkspaceId,
+              );
+            },
+          ),
+        ],
       ),
       body: Stack(
         children: [
-          Selector<ReportsProvider, (bool, String?, int?)>(
-            selector: (_, p) =>
-                (p.isLoading, p.errorMessage, p.viewModel?.transactionCount),
+          Selector<ReportsProvider, (bool, String?, int?, String)>(
+            selector: (_, p) => (
+              p.isLoading,
+              p.errorMessage,
+              p.viewModel?.transactionCount,
+              p.activeWorkspaceId,
+            ),
             builder: (context, data, _) {
-              final (isLoading, errorMessage, transactionCount) = data;
+              final (isLoading, errorMessage, transactionCount, _) = data;
 
               if (isLoading) {
                 return const Center(child: CircularProgressIndicator());
               }
               if (errorMessage != null) {
-                return Center(child: Text('Error: $errorMessage'));
+                final translated = AppErrorTranslator.translate(errorMessage);
+                return Center(
+                  child: EmptyStatePlaceholder(
+                    icon: Icons.error_outline_rounded,
+                    title: 'Unable to load reports',
+                    message: translated.fullText,
+                  ),
+                );
               }
               if (transactionCount == 0) {
-                return const Center(
+                return Center(
                   child: EmptyStatePlaceholder(
                     icon: Icons.analytics_outlined,
                     title: 'No reports yet',
-                    message:
-                        'Track some expenses to see your financial patterns here.',
+                    message: activeWorkspace != null
+                        ? 'No expenses recorded in "${activeWorkspace.name}" for this range.'
+                        : 'Track some expenses to see your financial patterns here.',
                   ),
                 );
               }
@@ -334,18 +174,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
               return CustomScrollView(
                 controller: _scrollController,
                 slivers: [
-                  // 6-3 · Range selector — compact chip row
+                  // Range & Payment Instrument selector
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.symmetric(
                         horizontal: AppLayout.screenPadding(context),
                         vertical: AppSpacing.md,
                       ),
-                      child: _buildRangeChips(context),
+                      child: _buildRangeChips(context, activeWorkspace),
                     ),
                   ),
 
-                  // 6-1 · Compact sticky KPI bar
+                  // Compact sticky KPI bar
                   SliverPersistentHeader(
                     pinned: true,
                     delegate: _KPIHeaderDelegate(),
@@ -360,19 +200,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     ),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
-                        // 6-2 · Scroll order
-                        // (1) period summary insight (Already in KPI section or above)
-
-                        // (2) heatmap ChartPanel
                         _buildHeatmapSection(context),
                         const SizedBox(height: AppSpacing.xl),
-
-                        // (3) trend chart ChartPanel
-                        // (4) pie chart ChartPanel
                         _buildChartsSection(context),
                         const SizedBox(height: AppSpacing.xl),
-
-                        // (5) top expenses list
                         _buildTopExpensesSection(context),
                       ]),
                     ),
@@ -381,57 +212,74 @@ class _ReportsScreenState extends State<ReportsScreen> {
               );
             },
           ),
-
-          // Global Export Loader
-          if (_isExporting)
-            Container(
-              color: Colors.black54,
-              child: Center(
-                child: Card(
-                  margin: const EdgeInsets.all(AppSpacing.xl),
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.xl),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(value: _exportProgress),
-                        const SizedBox(height: AppSpacing.md),
-                        Text(
-                          _exportProgress != null
-                              ? 'Generating PDF (${(_exportProgress! * 100).toInt()}%)...'
-                              : 'Preparing export...',
-                          style: AppTextStyles.body(context),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );
   }
 
-  Widget _buildRangeChips(BuildContext context) {
+  Widget _buildRangeChips(BuildContext context, Workspace? activeWorkspace) {
     final provider = context.watch<ReportsProvider>();
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: ReportsRangePreset.values.map((preset) {
-          final isSelected = provider.activePreset == preset;
-          return Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.sm),
-            child: ChoiceChip(
-              label: Text(preset.label),
-              selected: isSelected,
-              onSelected: (val) {
-                if (val) provider.setPreset(preset);
-              },
+    final selectedMethod =
+        (provider.paymentMethod == null || provider.paymentMethod!.isEmpty)
+            ? 'All'
+            : provider.paymentMethod!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (activeWorkspace != null) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
             ),
-          );
-        }).toList(),
-      ),
+            decoration: BoxDecoration(
+              color: Color(activeWorkspace.colorValue).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.full),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  WorkspaceIcons.forType(activeWorkspace.type),
+                  size: 14,
+                  color: Color(activeWorkspace.colorValue),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '${activeWorkspace.name} (${activeWorkspace.currency})',
+                  style: AppTextStyles.labelSmall(context).copyWith(
+                    color: Color(activeWorkspace.colorValue),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        BudgoChoiceGroup<ReportsRangePreset>(
+          allowHorizontalScroll: true,
+          options: ReportsRangePreset.values
+              .map((p) => BudgoChoiceOption(value: p, label: p.label))
+              .toList(),
+          selectedValue: provider.activePreset,
+          onSelected: provider.setPreset,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        BudgoChoiceGroup<String>(
+          allowHorizontalScroll: true,
+          options: const [
+            BudgoChoiceOption(value: 'All', label: 'All'),
+            BudgoChoiceOption(value: 'UPI', label: 'UPI', icon: Icons.qr_code_rounded),
+            BudgoChoiceOption(value: 'Cash', label: 'Cash', icon: Icons.payments_outlined),
+            BudgoChoiceOption(value: 'Bank', label: 'Bank', icon: Icons.account_balance_outlined),
+          ],
+          selectedValue: selectedMethod,
+          onSelected: (method) =>
+              provider.setPaymentMethod(method == 'All' ? null : method),
+        ),
+      ],
     );
   }
 
@@ -545,25 +393,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ? 'Yearly overview of spending intensity'
               : 'Daily spending intensity for ${DateFormat('MMMM y').format(_heatmapMonth)}',
           actions: [
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(
-                  value: false,
-                  label: Text('Month'),
-                  icon: Icon(Icons.calendar_view_month, size: 16),
-                ),
-                ButtonSegment(
-                  value: true,
-                  label: Text('Year'),
-                  icon: Icon(Icons.calendar_view_day, size: 16),
-                ),
-              ],
-              selected: {_isYearlyHeatmap},
-              onSelectionChanged: (val) {
-                setState(() => _isYearlyHeatmap = val.first);
-              },
-              showSelectedIcon: false,
-              style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            SizedBox(
+              width: 196,
+              child: BudgoSegmentedControl<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: false,
+                    label: Text('Month'),
+                    icon: Icon(Icons.calendar_view_month, size: 16),
+                  ),
+                  ButtonSegment(
+                    value: true,
+                    label: Text('Year'),
+                    icon: Icon(Icons.calendar_view_day, size: 16),
+                  ),
+                ],
+                selected: _isYearlyHeatmap,
+                onSelected: (val) => setState(() => _isYearlyHeatmap = val),
+              ),
             ),
           ],
           chart: Column(
@@ -603,10 +450,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 },
                 onDayTap: (date, amount) {
                   final criteria = FilterCriteria(date: date);
-                  context.read<AppNavigationProvider>().setIndex(1);
-                  Navigator.of(
-                    context,
-                  ).pushNamed('/activity', arguments: criteria);
+                  context
+                      .read<AppNavigationProvider>()
+                      .openActivity(criteria: criteria);
                 },
               ),
             ],
@@ -624,7 +470,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
           return const SizedBox.shrink();
         }
 
-        final colorScheme = Theme.of(context).colorScheme;
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
         final topFive = vm.topExpenses.take(5).toList();
 
         return ChartPanel(
@@ -641,8 +488,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     backgroundColor: colorScheme.surfaceContainerHighest,
                     child: Text(
                       '${index + 1}',
-                      style: TextStyle(
-                        fontSize: 12,
+                      style: theme.textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: colorScheme.onSurface,
                       ),
@@ -650,25 +496,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ),
                   title: Text(
                     expense.productName,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   subtitle: Text(expense.category),
                   trailing: Text(
                     expense.amount.format(),
-                    style: TextStyle(
+                    style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colorScheme.primary,
                     ),
                   ),
                 );
               }),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               SizedBox(
                 width: double.infinity,
                 child: TextButton(
                   onPressed: () {
-                    context.read<AppNavigationProvider>().setIndex(1);
-                    Navigator.of(context).pushNamed('/activity');
+                    context.read<AppNavigationProvider>().openActivity();
                   },
                   child: const Text('See all →'),
                 ),

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:expense/core/app_motion.dart';
+import 'package:expense/design/tokens/app_motion.dart';
+import 'package:expense/design/tokens/app_radius.dart';
+import 'package:expense/core/registries/category_registry.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
-import 'package:expense/models/reports_view_model.dart';
+import 'package:expense/models/view_models/reports_view_model.dart';
 import 'package:expense/models/filter_criteria.dart';
-import 'package:expense/provider/app_navigation_provider.dart';
-import 'package:expense/core/money.dart';
+import 'package:expense/providers/app_navigation_provider.dart';
+import 'package:expense/core/currency/currency_formatter.dart';
 
 class PieChartWidget extends StatefulWidget {
   final List<ChartPieSlice> data;
@@ -19,68 +21,10 @@ class PieChartWidget extends StatefulWidget {
 class _PieChartWidgetState extends State<PieChartWidget> {
   int _touchedIndex = -1;
 
-  IconData _getCategoryIcon(String category) {
-    switch (category.toLowerCase().trim()) {
-      case 'food':
-        return Icons.restaurant_outlined;
-      case 'travel':
-        return Icons.directions_car_outlined;
-      case 'bills':
-        return Icons.receipt_outlined;
-      case 'shopping':
-        return Icons.shopping_bag_outlined;
-      case 'lend':
-        return Icons.handshake_outlined;
-      case 'entertainment':
-        return Icons.movie_outlined;
-      case 'health':
-        return Icons.medical_services_outlined;
-      case 'education':
-        return Icons.school_outlined;
-      case 'income':
-        return Icons.arrow_downward_outlined;
-      default:
-        return Icons.attach_money_outlined;
-    }
-  }
+  IconData _getCategoryIcon(String category) => category.categoryIcon;
 
-  Color _getCategoryColor(String category, BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final lightPalette = {
-      'food': const Color(0xFFE57373),         // Coral Red
-      'travel': const Color(0xFF4FC3F7),       // Sky Blue
-      'bills': const Color(0xFF81C784),        // Soft Green
-      'shopping': const Color(0xFFFFB74D),     // Warm Amber
-      'lend': const Color(0xFFBA68C8),         // Lavender Purple
-      'entertainment': const Color(0xFFFF8A65),// Deep Apricot
-      'health': const Color(0xFF4DB6AC),        // Minty Teal
-      'education': const Color(0xFF90A4AE),     // Cool Grey
-    };
-
-    final darkPalette = {
-      'food': const Color(0xFFEF9A9A),         // Soft Rose
-      'travel': const Color(0xFF81D4FA),       // Pastel Sky Blue
-      'bills': const Color(0xFFA5D6A7),        // Light Mint
-      'shopping': const Color(0xFFFFCC80),     // Soft Orange
-      'lend': const Color(0xFFE1BEE7),         // Soft Lavender
-      'entertainment': const Color(0xFFFFCCBC),// Cream Peach
-      'health': const Color(0xFF80CBC4),        // Soft Teal
-      'education': const Color(0xFFB0BEC5),     // Blue Grey
-    };
-
-    final key = category.trim().toLowerCase();
-    final palette = isDark ? darkPalette : lightPalette;
-    if (palette.containsKey(key)) {
-      return palette[key]!;
-    }
-
-    final hash = key.hashCode.abs();
-    final fallbackColors = isDark
-        ? [const Color(0xFF9FA8DA), const Color(0xFFB39DDB), const Color(0xFF80DEEA), const Color(0xFFD7CCC8)]
-        : [const Color(0xFF5C6BC0), const Color(0xFFAB47BC), const Color(0xFF26C6DA), const Color(0xFF8D6E63)];
-    return fallbackColors[hash % fallbackColors.length];
-  }
+  Color _getCategoryColor(String category, BuildContext context) =>
+      category.resolveCategoryColor(context);
 
   @override
   Widget build(BuildContext context) {
@@ -261,7 +205,8 @@ class _LegendRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -355,7 +300,8 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
@@ -422,18 +368,17 @@ class _DetailRow extends StatelessWidget {
                 },
                 style: FilledButton.styleFrom(
                   backgroundColor: categoryColor,
-                  foregroundColor: Colors.white,
+                  foregroundColor: colorScheme.onPrimary,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                 ),
                 icon: const Icon(Icons.list_alt_outlined, size: 18),
-                label: const Text(
+                label: Text(
                   'View Transactions',
-                  style: TextStyle(
+                  style: theme.textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.bold,
-                    fontSize: 13,
                   ),
                 ),
               ),

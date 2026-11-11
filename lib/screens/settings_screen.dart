@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:expense/core/app_spacing.dart';
-import 'package:expense/provider/theme_provider.dart';
-import 'package:expense/provider/reminder_provider.dart';
-import 'package:expense/provider/expenses_provider.dart';
-import 'package:expense/provider/income_provider.dart';
-import 'package:expense/provider/future_expenses_provider.dart';
-import 'package:expense/provider/app_preferences_provider.dart';
+import 'package:expense/core/errors/app_error_translator.dart';
+import 'package:expense/design/budgo_ui.dart';
+import 'package:expense/providers/theme_provider.dart';
+import 'package:expense/providers/reminder_provider.dart';
+import 'package:expense/providers/app_preferences_provider.dart';
 import 'package:expense/services/storage_info_service.dart';
-import 'package:expense/widgets/confirmation_dialog.dart';
-import 'package:expense/widgets/snackbar_feedback.dart';
-import 'package:expense/widgets/common/app_card.dart';
-import 'package:expense/widgets/common/app_section_header.dart';
-import 'package:expense/widgets/common/app_settings_tile.dart';
-import 'package:expense/widgets/forms/reminders_management_sheet.dart';
+import 'package:expense/widgets/tiles/app_settings_tile.dart';
+import 'package:expense/widgets/sheets/data_management_sheet.dart';
+import 'package:expense/widgets/sheets/reminders_management_sheet.dart';
+import 'package:expense/widgets/sheets/workspace_switcher_sheet.dart';
+import 'package:expense/widgets/sheets/self_transfer_bottom_sheet.dart';
+import 'package:expense/widgets/sheets/category_management_sheet.dart';
+import 'package:expense/widgets/sheets/vault_management_sheet.dart';
+import 'package:expense/providers/category_provider.dart';
+import 'package:expense/providers/savings_vault_provider.dart';
+import 'package:expense/services/data_lifecycle_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -54,112 +56,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!confirm1) return;
 
     if (!mounted) return;
-    final confirm2 = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Are you absolutely sure?'),
-        content: const Text(
+    final confirm2 = await ConfirmationDialog.show(
+      context,
+      title: 'Are you absolutely sure?',
+      message:
           'All local database files will be wiped. We recommend exporting a CSV backup first.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('I Understand'),
-          ),
-        ],
-      ),
+      confirmLabel: 'I Understand',
+      isDestructive: true,
     );
-    if (confirm2 != true) return;
+    if (!confirm2) return;
 
     if (!mounted) return;
-    final confirm3 = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        final controller = TextEditingController();
-        return AlertDialog(
-          title: const Text('Final Verification'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Please type "RESET" in all caps to confirm deletion.',
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  hintText: 'RESET',
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            ValueListenableBuilder(
-              valueListenable: controller,
-              builder: (context, value, _) {
-                return TextButton(
-                  onPressed: value.text == 'RESET'
-                      ? () => Navigator.pop(ctx, true)
-                      : null,
-                  style: TextButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.error,
-                  ),
-                  child: const Text('RESET EVERYTHING'),
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
-    if (confirm3 != true) return;
+    final verification = await FactoryResetVerificationDialog.show(context);
+    if (verification == null || !verification.confirmed) return;
 
     if (!mounted) return;
-    final expensesProvider = context.read<ExpensesProvider>();
-    await expensesProvider.resetAllData();
-    if (!mounted) return;
-    await Future.wait([
-      context.read<IncomeProvider>().load(),
-      context.read<ReminderProvider>().load(),
-      context.read<FutureExpensesProvider>().load(),
-    ]);
-    if (!mounted) return;
-    SnackbarFeedback.showSuccess(context, 'All data reset successfully.');
-    _loadStorageSize();
+    try {
+      DataLifecycleService? lifecycleService;
+      try {
+        lifecycleService = context.read<DataLifecycleService>();
+      } on ProviderNotFoundException {
+        lifecycleService = DataLifecycleService();
+      }
+      await lifecycleService.factoryResetAllData(
+        resetCategories: verification.resetCategories,
+      );
+      if (!mounted) return;
+      await reloadAllAppProviders(
+        context,
+        includeCategories: verification.resetCategories,
+      );
+      if (!mounted) return;
+      SnackbarFeedback.showSuccess(context, 'All data reset cleanly.');
+      _loadStorageSize();
+    } catch (e) {
+      if (mounted) {
+        SnackbarFeedback.showError(context, e, operation: FeedbackOperation.resetData);
+      }
+    }
   }
 
-  Future<void> _confirmArchive() async {
-    final provider = context.read<ExpensesProvider>();
-    final count = provider.countOlderThan(12);
-
-    final confirm = await ConfirmationDialog.show(
+  void _openArchiveSheet() {
+    WorkspaceArchiveSheet.show(
       context,
-      title: 'Archive Data',
-      message:
-          'Archive $count expenses older than 12 months to improve performance? They will still be available in exports.',
-      confirmLabel: 'Archive Now',
+      onCompleted: () {
+        StorageInfoService.invalidate();
+        _loadStorageSize();
+      },
     );
+  }
 
-    if (confirm) {
-      if (!mounted) return;
-      await provider.archiveOldExpenses(12);
-      if (!mounted) return;
-      SnackbarFeedback.showSuccess(context, 'Expenses archived successfully.');
-      _loadStorageSize();
-    }
+  void _openClearWorkspaceSheet() {
+    WorkspaceClearSheet.show(
+      context,
+      onCompleted: () {
+        StorageInfoService.invalidate();
+        _loadStorageSize();
+      },
+    );
+  }
+
+  void _openStorageBreakdown() {
+    StorageBreakdownSheet.show(
+      context,
+      onChanged: _loadStorageSize,
+    );
   }
 
   @override
@@ -176,13 +137,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         .length;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        elevation: 0,
-        scrolledUnderElevation: 2,
-      ),
+      appBar: const BudgoAppBar(title: 'Settings'),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
         children: [
@@ -197,7 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   AppSettingsTile(
                     type: AppSettingsTileType.segmented,
                     title: 'App Appearance',
-                    segmentedWidget: SegmentedButton<ThemeMode>(
+                    segmentedWidget: BudgoSegmentedControl<ThemeMode>(
                       segments: const [
                         ButtonSegment(
                           value: ThemeMode.system,
@@ -215,22 +170,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           label: Text('Dark'),
                         ),
                       ],
-                      selected: {themeProvider.themeMode},
-                      onSelectionChanged: (Set<ThemeMode> newSelection) {
-                        themeProvider.setThemeMode(newSelection.first);
-                      },
-                      showSelectedIcon: false,
-                      style: SegmentedButton.styleFrom(
-                        visualDensity: VisualDensity.comfortable,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
+                      selected: themeProvider.themeMode,
+                      onSelected: themeProvider.setThemeMode,
                     ),
                   ),
                   const Divider(height: 1, indent: AppSpacing.base),
                   AppSettingsTile(
                     type: AppSettingsTileType.segmented,
                     title: 'Theme Contrast',
-                    segmentedWidget: SegmentedButton<ThemeContrast>(
+                    segmentedWidget: BudgoSegmentedControl<ThemeContrast>(
                       segments: const [
                         ButtonSegment(
                           value: ThemeContrast.low,
@@ -248,36 +196,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           label: Text('High'),
                         ),
                       ],
-                      selected: {themeProvider.contrast},
-                      onSelectionChanged: (Set<ThemeContrast> newSelection) {
-                        themeProvider.setContrast(newSelection.first);
-                      },
-                      showSelectedIcon: false,
-                      style: SegmentedButton.styleFrom(
-                        visualDensity: VisualDensity.comfortable,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
+                      selected: themeProvider.contrast,
+                      onSelected: themeProvider.setContrast,
                     ),
                   ),
                   AppSettingsTile(
                     type: AppSettingsTileType.segmented,
                     title: 'Currency',
-                    segmentedWidget: SegmentedButton<String>(
+                    segmentedWidget: BudgoSegmentedControl<String>(
                       segments: const [
                         ButtonSegment(value: '₹', label: Text('₹')),
                         ButtonSegment(value: '\$', label: Text('\$')),
                         ButtonSegment(value: '€', label: Text('€')),
                         ButtonSegment(value: '¥', label: Text('¥')),
                       ],
-                      selected: {prefsProvider.currencySymbol},
-                      onSelectionChanged: (Set<String> newSelection) {
-                        prefsProvider.setCurrencySymbol(newSelection.first);
-                      },
-                      showSelectedIcon: false,
-                      style: SegmentedButton.styleFrom(
-                        visualDensity: VisualDensity.comfortable,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
+                      selected: prefsProvider.currencySymbol,
+                      onSelected: prefsProvider.setCurrencySymbol,
                     ),
                   ),
                   const Divider(height: 1, indent: AppSpacing.base),
@@ -291,13 +225,110 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       prefsProvider.setBudgetMode(val);
                     },
                   ),
+                  const Divider(height: 1, indent: AppSpacing.base),
+                  AppSettingsTile(
+                    type: AppSettingsTileType.toggle,
+                    title: 'Monthly Refresh',
+                    subtitle: 'Show total tracking for current month only',
+                    leadingIcon: Icons.autorenew,
+                    value: prefsProvider.isMonthlyRefreshEnabled,
+                    onChanged: (val) {
+                      prefsProvider.setMonthlyRefresh(val);
+                    },
+                  ),
+                  const Divider(height: 1, indent: AppSpacing.base),
+                  AppSettingsTile(
+                    type: AppSettingsTileType.toggle,
+                    title: 'Privacy Mode (Hide Balance)',
+                    subtitle: 'Mask financial balances across the app',
+                    leadingIcon: Icons.visibility_off_outlined,
+                    value: prefsProvider.isPrivacyModeEnabled,
+                    onChanged: (val) {
+                      prefsProvider.setPrivacyMode(val);
+                    },
+                  ),
+                  const Divider(height: 1, indent: AppSpacing.base),
+                  AppSettingsTile(
+                    type: AppSettingsTileType.segmented,
+                    title: 'Default Payment Method',
+                    subtitle: 'Pre-selected when logging transactions',
+                    segmentedWidget: BudgoSegmentedControl<String>(
+                      segments: const [
+                        ButtonSegment(value: 'UPI', label: Text('UPI')),
+                        ButtonSegment(value: 'Cash', label: Text('Cash')),
+                        ButtonSegment(value: 'Bank', label: Text('Bank')),
+                      ],
+                      selected: prefsProvider.defaultPaymentMethod,
+                      onSelected: prefsProvider.setDefaultPaymentMethod,
+                    ),
+                  ),
+                  const Divider(height: 1, indent: AppSpacing.base),
+                  AppSettingsTile(
+                    type: AppSettingsTileType.navigation,
+                    title: 'Categories',
+                    subtitle:
+                        '${context.watch<CategoryProvider>().activeCount} of 12 active categories',
+                    leadingIcon: Icons.category_outlined,
+                    onTap: () => CategoryManagementSheet.show(context),
+                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
 
-          // Group 2 — Data (occasional use)
+          // Group 2 — Profiles & Accounts
+          const AppSectionHeader(label: 'Profiles & Accounts'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.base),
+            child: AppCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  AppSettingsTile(
+                    type: AppSettingsTileType.navigation,
+                    title: 'Workspaces & Profiles',
+                    subtitle: 'Manage personal, business, and trip workspaces',
+                    leadingIcon: Icons.folder_shared_outlined,
+                    onTap: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => const WorkspaceSwitcherSheet(),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1, indent: AppSpacing.base),
+                  AppSettingsTile(
+                    type: AppSettingsTileType.navigation,
+                    title: 'Self-Transfer',
+                    subtitle: 'Transfer funds between accounts',
+                    leadingIcon: Icons.swap_horiz_rounded,
+                    onTap: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => const SelfTransferBottomSheet(),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1, indent: AppSpacing.base),
+                  AppSettingsTile(
+                    type: AppSettingsTileType.navigation,
+                    title: 'Savings Vaults & Goals',
+                    subtitle: '${context.watch<SavingsVaultProvider>().activeVaults.length} active goals',
+                    leadingIcon: Icons.savings_outlined,
+                    onTap: () => VaultManagementSheet.show(context),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
+          // Group 3 — Data (occasional use)
           const AppSectionHeader(label: 'Data'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.base),
@@ -310,10 +341,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Storage Used',
                     leadingIcon: Icons.storage_outlined,
                     trailingValue: _storageSize,
-                    onTap: () {
-                      StorageInfoService.invalidate();
-                      _loadStorageSize();
-                    },
+                    onTap: _openStorageBreakdown,
                   ),
                   const Divider(height: 1, indent: AppSpacing.base),
                   AppSettingsTile(
@@ -341,16 +369,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   AppSettingsTile(
                     type: AppSettingsTileType.action,
                     title: 'Archive Old Data',
-                    subtitle: 'Move 12+ month old items to archive',
+                    subtitle: 'Archive older expenses per workspace',
                     leadingIcon: Icons.archive_outlined,
                     destructive: true,
-                    onTap: _confirmArchive,
+                    onTap: _openArchiveSheet,
+                  ),
+                  const Divider(height: 1, indent: AppSpacing.base),
+                  AppSettingsTile(
+                    type: AppSettingsTileType.action,
+                    title: 'Clear Workspace Data',
+                    subtitle: 'Wipe specific workspace(s) with full isolation',
+                    leadingIcon: Icons.cleaning_services_outlined,
+                    destructive: true,
+                    onTap: _openClearWorkspaceSheet,
                   ),
                   const Divider(height: 1, indent: AppSpacing.base),
                   AppSettingsTile(
                     type: AppSettingsTileType.action,
                     title: 'Reset All Data',
-                    subtitle: 'Permanently wipe all local records',
+                    subtitle: 'Permanently wipe all workspaces & local records',
                     leadingIcon: Icons.delete_forever_outlined,
                     destructive: true,
                     onTap: _confirmReset,

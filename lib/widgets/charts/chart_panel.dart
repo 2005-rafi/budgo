@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:expense/core/app_motion.dart';
-import 'package:expense/core/app_spacing.dart';
-import 'package:expense/core/app_radius.dart';
-import 'package:expense/widgets/common/app_card.dart';
+import 'package:expense/design/tokens/app_motion.dart';
+import 'package:expense/design/tokens/app_spacing.dart';
+import 'package:expense/design/tokens/app_radius.dart';
+import 'package:expense/design/components/budgo_card.dart';
 
 class ChartPanel extends StatelessWidget {
   final String title;

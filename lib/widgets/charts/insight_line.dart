@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:expense/core/app_motion.dart';
+import 'package:expense/design/tokens/app_motion.dart';
 
 class InsightLine extends StatelessWidget {
   final IconData icon;

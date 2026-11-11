@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:expense/core/money.dart';
+import 'package:expense/core/currency/currency_formatter.dart';
 import 'package:intl/intl.dart';
 
-import 'package:expense/models/reports_view_model.dart';
+import 'package:expense/models/view_models/reports_view_model.dart';
 
 class LineChartWidget extends StatefulWidget {
   final List<ChartBarPoint> data;
